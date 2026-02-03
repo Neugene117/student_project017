@@ -17,8 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         exit();
     }
     
-    // Query database for user with matching username
-    $query = "SELECT username, passwords, statuss FROM users WHERE username = ? LIMIT 1";
+    // Query database for user with matching username (including role)
+    $query = "SELECT u.user_id, u.username, u.passwords, u.statuss, u.user_image, u.role_id, r.role_name
+              FROM users u
+              LEFT JOIN role r ON u.role_id = r.role_id
+              WHERE u.username = ? LIMIT 1";
     
     $stmt = mysqli_prepare($conn, $query);
     
@@ -59,7 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             if ($user['statuss'] == 1) {
                 
                 // Create session variables
+                $_SESSION['user_id'] = $user['user_id'];
                 $_SESSION['username'] = $user['username'];
+                $_SESSION['user_image'] = isset($user['user_image']) ? $user['user_image'] : '';
+                $_SESSION['role_id'] = isset($user['role_id']) ? $user['role_id'] : '';
+                $_SESSION['user_role'] = isset($user['role_name']) && $user['role_name'] !== '' ? $user['role_name'] : 'User Account';
                 $_SESSION['logged_in'] = true;
                 
                 // Redirect to dashboard

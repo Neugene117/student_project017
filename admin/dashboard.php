@@ -19,12 +19,12 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     <link rel="stylesheet" href="./assets/css/dashboard.css">
 </head>
 <body>
-   <?php include './includes/sidebar.php'; ?>
+   <?php include './include/sidebar.php'; ?>
 
     <!-- Main Content -->
     <main class="main-content">
         <!-- Header -->
-        <?php include '../includes/header.php'; ?>
+        <?php include './include/header.php'; ?>
 
         <!-- Dashboard Content -->
         <div class="dashboard-content">

@@ -2,8 +2,7 @@
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
-                <i class="fas fa-tools"></i>
-                <span class="logo-text">EMS Admin</span>
+                <img class="logo-img" src="./../static/images/logo.JPG" alt="logo">
             </div>
         </div>
 
@@ -43,7 +42,7 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link">
+                    <a href="./pages/categories.php" class="nav-link">
                         <i class="fas fa-layer-group"></i>
                         <span class="nav-text">Categories</span>
                     </a>
@@ -83,8 +82,17 @@
 
         <div class="sidebar-footer">
             <div class="user-info">
-                <i class="fas fa-user-circle"></i>
-                <span class="user-name">Admin User</span>
+                <?php
+                    $userImage = isset($_SESSION['user_image']) ? trim($_SESSION['user_image']) : '';
+                    $userImagePath = '../uploads/users/' . rawurlencode($userImage);
+                    $userImageFallback = '../static/images/default-user.png';
+                    $userImageSrc = ($userImage !== '' && file_exists(__DIR__ . '/../../uploads/users/' . $userImage))
+                        ? $userImagePath
+                        : $userImageFallback;
+                    $userName = isset($_SESSION['username']) ? $_SESSION['username'] : 'User';
+                ?>
+                <img src="<?php echo htmlspecialchars($userImageSrc); ?>" alt="<?php echo htmlspecialchars($userName); ?>" class="profile-img">
+                <span class="user-name"><?php echo htmlspecialchars($userName); ?></span>
             </div>
         </div>
     </aside>
