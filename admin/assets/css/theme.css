@@ -1,12 +1,12 @@
 :root {
   /* Color Variables */
-  --primary-blue: #2563eb;
-  --primary-blue-dark: #1e40af;
-  --primary-blue-light: #3b82f6;
-  --secondary-blue: #60a5fa;
-  --blue-50: #eff6ff;
-  --blue-100: #dbeafe;
-  --blue-200: #bfdbfe;
+  --primary-red: #a10000;
+  --primary-red-dark: #740101;
+  --primary-red-light: #da0505;
+  --secondary-red: #be4747;
+  --red-50: #ffefef;
+  --red-100: #fedbdb;
+  --red-200: #febfbf;
 
   --white: #ffffff;
   --gray-50: #f9fafb;

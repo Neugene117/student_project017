@@ -45,7 +45,7 @@
 
 .logo-text {
     transition: var(--transition);
-    color: var(--primary-blue);
+    color: var(--primary-red);
 }
 
 .sidebar.collapsed .logo-text {
@@ -129,14 +129,14 @@
 }
 
 .nav-link:hover {
-    background: var(--blue-50);
-    color: var(--primary-blue);
+    background: var(--red-50);
+    color: var(--primary-red);
     transform: translateX(4px);
 }
 
 .nav-item.active .nav-link {
     color: var(--white);
-    background: var(--primary-blue);
+    background: var(--primary-red);
     box-shadow: var(--shadow-md);
 }
 
@@ -146,7 +146,7 @@
 
 .badge {
     margin-left: auto;
-    background: var(--primary-blue);
+    background: var(--primary-red);
     color: var(--white);
     padding: 2px 8px;
     border-radius: 12px;
@@ -191,7 +191,7 @@
 
 .user-info i {
     font-size: 32px;
-    color: var(--primary-blue);
+    color: var(--primary-red);
 }
 
 .sidebar.collapsed .user-name {
@@ -243,7 +243,7 @@
 
 .header .toggle-btn {
     background: var(--gray-100);
-    color: var(--primary-blue);
+    color: var(--primary-red);
 }
 
 .header .toggle-btn:hover {
@@ -272,8 +272,8 @@
 }
 
 .notification-btn:hover {
-    background: var(--blue-50);
-    color: var(--primary-blue);
+    background: var(--red-50);
+    color: var(--primary-red);
     transform: scale(1.05);
 }
 
@@ -334,7 +334,7 @@
 .mark-read {
     background: none;
     border: none;
-    color: var(--primary-blue);
+    color: var(--primary-red);
     font-size: 13px;
     cursor: pointer;
     font-weight: 500;
@@ -372,7 +372,7 @@
 }
 
 .notification-item.unread {
-    background: var(--blue-50);
+    background: var(--red-50);
 }
 
 .notification-icon {
@@ -438,7 +438,7 @@
 }
 
 .dropdown-footer a {
-    color: var(--primary-blue);
+    color: var(--primary-red);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
@@ -466,7 +466,7 @@
 }
 
 .profile-btn:hover {
-    background: var(--blue-50);
+    background: var(--red-50);
     transform: scale(1.02);
 }
 
@@ -474,7 +474,7 @@
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    border: 2px solid var(--primary-blue);
+    border: 2px solid var(--primary-red);
 }
 
 .profile-name {
@@ -525,7 +525,7 @@
     width: 50px;
     height: 50px;
     border-radius: 12px;
-    border: 2px solid var(--primary-blue);
+    border: 2px solid var(--primary-red);
 }
 
 .profile-info h4 {
@@ -558,7 +558,7 @@
 
 .profile-menu li a:hover {
     background: var(--gray-50);
-    color: var(--primary-blue);
+    color: var(--primary-red);
 }
 
 .profile-menu li a i {

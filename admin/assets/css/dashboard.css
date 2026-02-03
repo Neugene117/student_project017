@@ -77,7 +77,7 @@
 
 .stat-icon.equipment,
 .stat-icon-small.categories {
-    color: var(--primary-blue);
+    color: var(--primary-red);
 }
 
 .stat-icon.maintenance {
@@ -189,7 +189,7 @@
 }
 
 .card-header h3 i {
-    color: var(--primary-blue);
+    color: var(--primary-red);
 }
 
 .card-actions {
@@ -210,7 +210,7 @@
 }
 
 .chart-filter:hover {
-    border-color: var(--primary-blue);
+    border-color: var(--primary-red);
 }
 
 .icon-btn {
@@ -228,13 +228,13 @@
 }
 
 .icon-btn:hover {
-    background: var(--blue-50);
-    color: var(--primary-blue);
+    background: var(--red-50);
+    color: var(--primary-red);
     transform: scale(1.05);
 }
 
 .view-all {
-    color: var(--primary-blue);
+    color: var(--primary-red);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
@@ -363,8 +363,8 @@
 }
 
 .activity-icon.equipment {
-    background: var(--blue-100);
-    color: var(--primary-blue);
+    background: var(--red-100);
+    color: var(--primary-red);
 }
 
 .activity-icon.schedule {
@@ -507,12 +507,12 @@
 
 .action-btn i {
     font-size: 28px;
-    color: var(--primary-blue);
+    color: var(--primary-red);
 }
 
 .action-btn:hover {
-    background: var(--blue-50);
-    border-color: var(--primary-blue);
+    background: var(--red-50);
+    border-color: var(--primary-red);
     transform: translateY(-4px);
     box-shadow: var(--shadow-md);
 }
