@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+    <link rel="stylesheet" href="./static/css/styles.css" />    <!-- SweetAlert2 CSS and JS from CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-material-ui@5/material-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Custom login messages handler -->
+    <script src="./js/login-messages.js"></script>
+    <title>INES - Automatic Timetable System</title>
+    
+  </head>
+  <body class="signin-body">
+    <div class="container">
+      <div class="form-container sign-in-container">
+        <form action="loginscript.php" method="POST" id="loginForm">
+          <div class="form-header">
+            <img src="./static/images/logo.JPG" alt="INES Logo" class="logo">
+            <h1>Sign In</h1>
+          </div>
+
+          <!-- User Type Selection -->
+
+          <div class="input-group">
+            <i class="fas fa-envelope"></i>
+            <input type="email" name="email" id="emailInput" placeholder="Academic Email" required />
+          </div>
+          <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="password" name="password" placeholder="Password" required />
+            <i class="fas fa-eye password-toggle"></i>
+          </div>
+          <a href="./reset_password.html" class="forgot-password">Forgot your password?</a>
+
+          <!-- Error Message Display -->
+          <div id="errorMessage" class="error-message" style="display: none;">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="errorText"></span>
+          </div>
+
+          <!-- Hidden field to track user type -->
+          <input type="hidden" name="user_type" id="userType" value="staff">
+
+          <button type="submit" name="login">
+            <span>Sign In</span>
+            <div class="spinner"></div>
+          </button>
+        </form>
+      </div>      
+      <div class="overlay-container">
+        <div class="overlay">
+          <div class="overlay-panel">
+            <h1>New to REG N MIS?</h1>
+            <p>Contact your system administrator to create an account and start managing institutional equipment, track their usage, and monitor expiry or warranty periods in an efficient and reliable way.</p>
+            <div class="contact-info">
+              <p><i class="fas fa-envelope"></i> admin@reg.rw</p>
+              <p><i class="fas fa-phone"></i> +250 785 750 117</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>    <script>
+      // User type selection handling
+      document.addEventListener('DOMContentLoaded', function() {
+        const userTypeOptions = document.querySelectorAll('.user-type-option');
+        const userTypeInput = document.getElementById('userType');
+        const emailInput = document.getElementById('emailInput');
+        const studentRegisterLink = document.getElementById('studentRegisterLink');
+
+        userTypeOptions.forEach(option => {
+          option.addEventListener('click', function() {
+            // Remove active class from all options
+            userTypeOptions.forEach(opt => opt.classList.remove('active'));
+
+            // Add active class to clicked option
+            this.classList.add('active');
+
+            // Update hidden input value
+            const userType = this.dataset.type;
+            userTypeInput.value = userType;
+
+            // Update email placeholder and show/hide student register link
+            if (userType === 'student') {
+              emailInput.placeholder = 'Student Email (@ines.ac.rw)';
+              studentRegisterLink.style.display = 'block';
+            } else {
+              emailInput.placeholder = 'Academic Email';
+              studentRegisterLink.style.display = 'none';
+            }
+          });
+        });
+      });
+
+      // Form submission handling
+      document.querySelector('form').addEventListener('submit', function(e) {
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Hide any existing error messages
+        errorMessage.style.display = 'none';
+
+        // Add loading state
+        submitBtn.classList.add('loading');
+      });
+
+      // Function to show error message
+      function showError(message) {
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+
+        errorText.textContent = message;
+        errorMessage.style.display = 'flex';
+
+        // Remove loading state from button
+        const submitBtn = document.querySelector('button[type="submit"]');
+        submitBtn.classList.remove('loading');
+      }
+
+      // Function to show success message
+      function showSuccess(message) {
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+
+        errorMessage.className = 'success-message';
+        errorText.textContent = message;
+        errorMessage.style.display = 'flex';
+
+        // Change icon to success
+        const icon = errorMessage.querySelector('i');
+        icon.className = 'fas fa-check-circle';
+      }
+
+      // Check for error messages from PHP
+      document.addEventListener('DOMContentLoaded', function() {
+        // Check URL parameters for error messages
+        const urlParams = new URLSearchParams(window.location.search);
+        const error = urlParams.get('error');
+        const success = urlParams.get('success');
+
+        if (error) {
+          showError(decodeURIComponent(error));
+        } else if (success) {
+          showSuccess(decodeURIComponent(success));
+        }
+      });
+
+      // Password toggle with animation
+      document.querySelector('.password-toggle').addEventListener('click', function() {
+        const passwordInput = document.querySelector('input[name="password"]');
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        this.classList.toggle('fa-eye');
+        this.classList.toggle('fa-eye-slash');
+
+        this.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+          this.style.transform = 'scale(1)';
+        }, 150);
+      });
+    </script>
+  </body>
+</html>

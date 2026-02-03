@@ -1,0 +1,232 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Montserrat', sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f5f7;
+}
+
+.container {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+  width: 900px;
+  max-width: 100%;
+  min-height: 600px;
+  display: flex;
+}
+
+.form-container {
+  width: 50%;
+  padding: 40px;
+}
+
+.sign-in-container {
+  background: #fff;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.form-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.logo {
+  width: 120px;
+  margin-bottom: 15px;
+}
+
+
+h1 {
+  margin: 0;
+  font-weight: 700;
+  color: #333;
+}
+
+.input-group {
+  position: relative;
+  width: 100%;
+  margin: 8px 0;
+}
+
+input {
+  background: #f6f5f7;
+  border: none;
+  border-radius: 5px;
+  padding: 12px 15px 12px 40px;
+  width: 100%;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+input:focus {
+  outline: none;
+  background: #fff;
+  box-shadow: 0 0 0 2px #a10000;
+}
+
+.input-group i {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+}
+
+.password-toggle {
+  left: auto !important;
+  right: 15px;
+  cursor: pointer;
+}
+
+button {
+  border-radius: 5px;
+  border: 1px solid #a50606;
+  background: #a50606;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 45px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  margin-top: 15px;
+}
+
+button:hover {
+  background: #530000c7;
+  border-color: #530000c7;
+}
+
+.forgot-password {
+  color: #666;
+  font-size: 14px;
+  text-decoration: none;
+  margin: 15px 0;
+  transition: color 0.3s ease;
+}
+
+
+.overlay-container {
+  position: relative;
+  width: 50%;
+  background: #a50606;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #fff;
+  text-align: center;
+}
+
+.contact-info {
+  margin-top: 30px;
+  font-size: 14px;
+}
+
+.contact-info p {
+  margin: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.overlay-panel h1 {
+  color: #fff;
+  margin-bottom: 20px;
+}
+
+.overlay-panel p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+.name-row,
+.contact-row,
+.year-row {
+  display: flex;
+  gap: 15px;
+  width: 100%;
+}
+
+select {
+  background: #f6f5f7;
+  border: none;
+  border-radius: 5px;
+  padding: 12px 15px 12px 40px;
+  width: 100%;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  background-size: 15px;
+}
+
+.year-group i,
+.semester-group i {
+  color: #666;
+}
+
+.name-row .input-group,
+.contact-row .input-group {
+  flex: 1;
+}
+.login-link {
+  color: #666;
+  font-size: 14px;
+  text-decoration: none;
+  margin-top: 15px;
+  transition: color 0.3s ease;
+}
+
+.sign-up-container {
+  background: #fff;
+  padding: 40px;
+}
+
+.sign-up-container form {
+  max-width: 400px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    height: auto;
+    margin: 20px;
+  }
+
+  .form-container,
+  .overlay-container {
+    width: 100%;
+  }
+
+  .overlay-container {
+    padding: 30px;
+  }
+}
