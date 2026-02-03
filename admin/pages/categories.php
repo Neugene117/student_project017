@@ -21,6 +21,11 @@ if (isset($_GET['success']) && $_GET['success'] == '1') {
     $success_message = "Category added successfully!";
 }
 
+// Check if redirect came from successful edit
+if (isset($_GET['success']) && $_GET['success'] == '2') {
+    $success_message = "Category updated successfully!";
+}
+
 // Handle Add Category
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
     // Verify CSRF token
@@ -66,6 +71,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $error_message = "Error deleting category: " . $conn->error;
     }
     $stmt->close();
+}
+
+// Handle Edit Category
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
+    // Verify CSRF token
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['category_token']) {
+        $error_message = "Security token validation failed. Please try again.";
+    } else {
+        $category_id = intval($_POST['category_id']);
+        $category_name = trim($_POST['category_name']);
+        
+        if (!empty($category_name)) {
+            $sql = "UPDATE category SET category_name = ? WHERE category_id = ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("si", $category_name, $category_id);
+            
+            if ($stmt->execute()) {
+                $stmt->close();
+                // Regenerate token after successful submission
+                $_SESSION['category_token'] = bin2hex(random_bytes(32));
+                // Redirect to prevent duplicate submission on refresh
+                header("Location: " . $_SERVER['PHP_SELF'] . "?success=2");
+                exit();
+            } else {
+                $error_message = "Error updating category: " . $conn->error;
+            }
+            $stmt->close();
+        } else {
+            $error_message = "Category name cannot be empty!";
+        }
+    }
 }
 
 // Fetch all categories
@@ -141,6 +177,23 @@ if ($result && $result->num_rows > 0) {
             transform: translateY(-2px);
         }
 
+        .btn-submit {
+            background: #7f1d1d;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 14px;
+        }
+
+        .btn-submit:hover {
+            background: #991b1b;
+            transform: translateY(-2px);
+        }
+
         .btn-danger {
             background: var(--danger);
             color: white;
@@ -155,6 +208,41 @@ if ($result && $result->num_rows > 0) {
 
         .btn-danger:hover {
             background: #dc2626;
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 6px;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            width: 40px;
+            height: 40px;
+        }
+
+        .btn-edit {
+            color: white;
+            background: #22c55e;
+        }
+
+        .btn-edit:hover {
+            background: #16a34a;
+            color: white;
+        }
+
+        .btn-delete {
+            color: white;
+            background: var(--danger);
+        }
+
+        .btn-delete:hover {
+            background: #dc2626;
+            color: white;
         }
 
         .alert {
@@ -307,182 +395,152 @@ if ($result && $result->num_rows > 0) {
             font-size: 13px;
             color: var(--gray-600);
         }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .form-row .form-group {
+            width: 40%;
+            margin-bottom: 0;
+        }
+
+        .form-row .btn-submit {
+            margin-bottom: 0;
+            white-space: nowrap;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: var(--white);
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 500px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--gray-800);
+            font-size: 20px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--gray-500);
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            color: var(--gray-800);
+        }
+
+        .modal-form .form-group {
+            margin-bottom: 20px;
+        }
+
+        .modal-form .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+
+        .modal-form .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        .modal-form .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .btn-cancel {
+            background: var(--gray-200);
+            color: var(--gray-800);
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-cancel:hover {
+            background: var(--gray-300);
+        }
     </style>
 </head>
 <body>
     <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo">
-                <i class="fas fa-tools"></i>
-                <span class="logo-text">EMS Admin</span>
-            </div>
-        </div>
-
-        <nav class="sidebar-nav">
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="../dashboard.php" class="nav-link">
-                        <i class="fas fa-chart-line"></i>
-                        <span class="nav-text">Dashboard</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-laptop-medical"></i>
-                        <span class="nav-text">Equipment</span>
-                        <span class="badge">0</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-wrench"></i>
-                        <span class="nav-text">Maintenance</span>
-                        <span class="badge warning">0</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span class="nav-text">Schedules</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span class="nav-text">Breakdowns</span>
-                        <span class="badge danger">0</span>
-                    </a>
-                </li>
-                <li class="nav-item active">
-                    <a href="categories.php" class="nav-link">
-                        <i class="fas fa-layer-group"></i>
-                        <span class="nav-text">Categories</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-map-marker-alt"></i>
-                        <span class="nav-text">Locations</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-users"></i>
-                        <span class="nav-text">Users</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-user-shield"></i>
-                        <span class="nav-text">Roles</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-chart-bar"></i>
-                        <span class="nav-text">Reports</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-bell"></i>
-                        <span class="nav-text">Notifications</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
-
-        <div class="sidebar-footer">
-            <div class="user-info">
-                <i class="fas fa-user-circle"></i>
-                <span class="user-name"><?php echo htmlspecialchars($_SESSION['username']); ?></span>
-            </div>
-        </div>
-    </aside>
+    <?php include '../include/sidebar.php'; ?>
 
     <!-- Main Content -->
     <main class="main-content">
         <!-- Header -->
-        <header class="header">
-            <div class="header-left">
-                <button class="toggle-btn" id="toggleBtn">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <h1 class="page-title">Categories</h1>
-            </div>
-
-            <div class="header-right">
-                <!-- Notifications -->
-                <div class="notification-wrapper">
-                    <button class="notification-btn" id="notificationBtn">
-                        <i class="fas fa-bell"></i>
-                        <span class="notification-count">5</span>
-                    </button>
-
-                    <div class="notification-dropdown" id="notificationDropdown">
-                        <div class="dropdown-header">
-                            <h3>Notifications</h3>
-                            <button class="mark-read">Mark all as read</button>
-                        </div>
-                        <div class="notification-list">
-                            <div class="notification-item unread">
-                                <div class="notification-icon breakdown">
-                                    <i class="fas fa-exclamation-circle"></i>
-                                </div>
-                                <div class="notification-content">
-                                    <p class="notification-text"><strong>High Priority:</strong> Equipment breakdown reported</p>
-                                    <span class="notification-time">30 minutes ago</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="dropdown-footer">
-                            <a href="#">View all notifications</a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Profile -->
-                <div class="profile-wrapper">
-                    <button class="profile-btn" id="profileBtn">
-                        <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($_SESSION['username']); ?>&background=2563eb&color=fff" alt="Profile" class="profile-img">
-                        <span class="profile-name"><?php echo htmlspecialchars($_SESSION['username']); ?></span>
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-
-                    <div class="profile-dropdown" id="profileDropdown">
-                        <div class="profile-header">
-                            <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($_SESSION['username']); ?>&background=2563eb&color=fff" alt="Profile">
-                            <div class="profile-info">
-                                <h4><?php echo htmlspecialchars($_SESSION['username']); ?></h4>
-                                <p>User Account</p>
-                            </div>
-                        </div>
-                        <ul class="profile-menu">
-                            <li>
-                                <a href="#">
-                                    <i class="fas fa-user"></i>
-                                    <span>My Profile</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#">
-                                    <i class="fas fa-question-circle"></i>
-                                    <span>Help & Support</span>
-                                </a>
-                            </li>
-                            <li class="divider"></li>
-                            <li>
-                                <a href="../logout.php" class="logout">
-                                    <i class="fas fa-sign-out-alt"></i>
-                                    <span>Logout</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </header>
+        <?php include '../include/header.php'; ?>
 
         <!-- Page Content -->
         <div class="dashboard-content">
@@ -514,33 +572,85 @@ if ($result && $result->num_rows > 0) {
                 </div>
             </div>
 
-            <!-- Add Category Form -->
-            <div class="category-form">
-                <h3 style="margin-top: 0; color: var(--gray-800); font-size: 18px; margin-bottom: 20px;">
-                    <i class="fas fa-plus-circle" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                    Add New Category
-                </h3>
-
-                <form method="POST" action="">
-                    <div class="form-group">
-                        <label for="category_name">Category Name</label>
-                        <input 
-                            type="text" 
-                            id="category_name" 
-                            name="category_name" 
-                            placeholder="Enter category name (e.g., Medical Equipment, Tools, etc.)"
-                            required
-                        >
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <i class="fas fa-plus"></i> Add Category
-                    </button>
-                    <input type="hidden" name="action" value="add">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
-                </form>
+            <!-- Add Category Button -->
+            <div style="margin-bottom: 30px;">
+                <button id="addCategoryBtn" class="btn-submit" style="margin: 0;">
+                    <i class="fas fa-plus"></i> Add New Category
+                </button>
             </div>
 
-            <!-- Categories Table -->
+            <!-- Add Category Modal -->
+            <div id="addCategoryModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>
+                            <i class="fas fa-plus-circle" style="color: var(--primary-blue); margin-right: 8px;"></i>
+                            Add New Category
+                        </h2>
+                        <button class="modal-close" id="closeModalBtn">&times;</button>
+                    </div>
+
+                    <form method="POST" action="" class="modal-form">
+                        <div class="form-group">
+                            <label for="modal_category_name">Category Name</label>
+                            <input 
+                                type="text" 
+                                id="modal_category_name" 
+                                name="category_name" 
+                                placeholder="Enter category name (e.g., Medical Equipment, Tools, etc.)"
+                                required
+                            >
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
+                            <button type="submit" class="btn-submit">
+                                <i class="fas fa-plus"></i> Add Category
+                            </button>
+                        </div>
+
+                        <input type="hidden" name="action" value="add">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
+                    </form>
+                </div>
+            </div>
+
+            <!-- Edit Category Modal -->
+            <div id="editCategoryModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>
+                            <i class="fas fa-edit" style="color: var(--primary-blue); margin-right: 8px;"></i>
+                            Edit Category
+                        </h2>
+                        <button class="modal-close" id="closeEditModalBtn">&times;</button>
+                    </div>
+
+                    <form method="POST" action="" class="modal-form">
+                        <div class="form-group">
+                            <label for="edit_category_name">Category Name</label>
+                            <input 
+                                type="text" 
+                                id="edit_category_name" 
+                                name="category_name" 
+                                placeholder="Enter category name"
+                                required
+                            >
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn-cancel" id="cancelEditBtn">Cancel</button>
+                            <button type="submit" class="btn-submit">
+                                <i class="fas fa-save"></i> Update Category
+                            </button>
+                        </div>
+
+                        <input type="hidden" name="action" value="edit">
+                        <input type="hidden" name="category_id" id="edit_category_id" value="">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
+                    </form>
+                </div>
+            </div>
             <div class="categories-table">
                 <?php if (count($categories) > 0): ?>
                     <table>
@@ -553,9 +663,12 @@ if ($result && $result->num_rows > 0) {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($categories as $category): ?>
+                            <?php 
+                            $counter = 1;
+                            foreach ($categories as $category): 
+                            ?>
                                 <tr>
-                                    <td class="category-id">#<?php echo htmlspecialchars($category['category_id']); ?></td>
+                                    <td class="category-id">#<?php echo $counter; ?></td>
                                     <td><?php echo htmlspecialchars($category['category_name']); ?></td>
                                     <td>
                                         <span class="created-date">
@@ -563,16 +676,22 @@ if ($result && $result->num_rows > 0) {
                                         </span>
                                     </td>
                                     <td>
+                                        <button type="button" class="btn-icon btn-edit" onclick="openEditModal(<?php echo $category['category_id']; ?>, '<?php echo htmlspecialchars($category['category_name'], ENT_QUOTES); ?>');" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
                                         <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this category?');">
                                             <input type="hidden" name="action" value="delete">
                                             <input type="hidden" name="category_id" value="<?php echo $category['category_id']; ?>">
-                                            <button type="submit" class="btn-danger">
-                                                <i class="fas fa-trash"></i> Delete
+                                            <button type="submit" class="btn-icon btn-delete" title="Delete">
+                                                <i class="fas fa-trash"></i>
                                             </button>
                                         </form>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
+                            <?php 
+                            $counter++;
+                            endforeach; 
+                            ?>
                         </tbody>
                     </table>
                 <?php else: ?>
@@ -587,5 +706,75 @@ if ($result && $result->num_rows > 0) {
     </main>
 
     <script src="../assets/js/script.js"></script>
+    <script>
+        // Get modal elements
+        const addCategoryModal = document.getElementById('addCategoryModal');
+        const addCategoryBtn = document.getElementById('addCategoryBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const modalForm = addCategoryModal.querySelector('form');
+
+        // Open modal
+        addCategoryBtn.addEventListener('click', function() {
+            addCategoryModal.classList.add('active');
+            document.getElementById('modal_category_name').focus();
+        });
+
+        // Close modal
+        function closeModal() {
+            addCategoryModal.classList.remove('active');
+            modalForm.reset();
+        }
+
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+
+        // Close modal when clicking outside of it
+        addCategoryModal.addEventListener('click', function(event) {
+            if (event.target === addCategoryModal) {
+                closeModal();
+            }
+        });
+
+        // Prevent modal close when clicking inside modal content
+        addCategoryModal.querySelector('.modal-content').addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+
+        // ========== Edit Category Modal ==========
+        const editCategoryModal = document.getElementById('editCategoryModal');
+        const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const editModalForm = editCategoryModal.querySelector('form');
+
+        // Open edit modal
+        function openEditModal(categoryId, categoryName) {
+            document.getElementById('edit_category_id').value = categoryId;
+            document.getElementById('edit_category_name').value = categoryName;
+            editCategoryModal.classList.add('active');
+            document.getElementById('edit_category_name').focus();
+        }
+
+        // Close edit modal
+        function closeEditModal() {
+            editCategoryModal.classList.remove('active');
+            editModalForm.reset();
+        }
+
+        closeEditModalBtn.addEventListener('click', closeEditModal);
+        cancelEditBtn.addEventListener('click', closeEditModal);
+
+        // Close modal when clicking outside of it
+        editCategoryModal.addEventListener('click', function(event) {
+            if (event.target === editCategoryModal) {
+                closeEditModal();
+            }
+        });
+
+        // Prevent modal close when clicking inside modal content
+        editCategoryModal.querySelector('.modal-content').addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+    </script>
 </body>
 </html>

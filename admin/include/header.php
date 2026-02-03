@@ -75,18 +75,22 @@
 
                 <!-- Profile -->
                 <div class="profile-wrapper">
+                    <?php
+                        $display_name = isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'User';
+                        $avatar_url = "https://ui-avatars.com/api/?name=" . urlencode($display_name) . "&background=2563eb&color=fff";
+                    ?>
                     <button class="profile-btn" id="profileBtn">
-                        <img src="https://ui-avatars.com/api/?name=Admin+User&background=2563eb&color=fff" alt="Profile" class="profile-img">
-                        <span class="profile-name">Admin User</span>
+                        <img src="<?php echo $avatar_url; ?>" alt="Profile" class="profile-img">
+                        <span class="profile-name"><?php echo $display_name; ?></span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-header">
-                            <img src="https://ui-avatars.com/api/?name=Admin+User&background=2563eb&color=fff" alt="Profile">
+                            <img src="<?php echo $avatar_url; ?>" alt="Profile">
                             <div class="profile-info">
-                                <h4>Admin User</h4>
-                                <p>admin@equipment.com</p>
+                                <h4><?php echo $display_name; ?></h4>
+                                <p><?php echo isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) . '@equipment.com' : 'user@equipment.com'; ?></p>
                             </div>
                         </div>
                         <ul class="profile-menu">
