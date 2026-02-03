@@ -165,7 +165,7 @@
                             <?php endif; ?>
                         </div>
                         <div class="dropdown-footer">
-                            <a href="#">View all notifications</a>
+                            <a href="notifications.php">View all notifications</a>
                         </div>
                     </div>
                 </div>
