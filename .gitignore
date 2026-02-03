@@ -2,3 +2,4 @@
 *.txt
 test.html
 database/
+config/db.php
