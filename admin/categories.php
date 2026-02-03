@@ -705,7 +705,7 @@ if ($result && $result->num_rows > 0) {
         </div>
     </main>
 
-    <script src="../assets/js/script.js"></script>
+    <script src="./assets/js/script.js"></script>
     <script>
         // Get modal elements
         const addCategoryModal = document.getElementById('addCategoryModal');

@@ -58,48 +58,52 @@ if ($stmt) {
 }
 
 // Function to get time ago
-function timeAgo($timestamp) {
-    $time_ago = strtotime($timestamp);
-    $current_time = time();
-    $time_difference = $current_time - $time_ago;
-    $seconds = $time_difference;
-    $minutes = round($seconds / 60);
-    $hours = round($seconds / 3600);
-    $days = round($seconds / 86400);
-    $weeks = round($seconds / 604800);
-    $months = round($seconds / 2629800);
-    $years = round($seconds / 31536000);
-    
-    if ($seconds <= 60) {
-        return "Just now";
-    } elseif ($minutes <= 60) {
-        return $minutes == 1 ? "1 minute ago" : "$minutes minutes ago";
-    } elseif ($hours <= 24) {
-        return $hours == 1 ? "1 hour ago" : "$hours hours ago";
-    } elseif ($days <= 7) {
-        return $days == 1 ? "1 day ago" : "$days days ago";
-    } elseif ($weeks <= 4) {
-        return $weeks == 1 ? "1 week ago" : "$weeks weeks ago";
-    } elseif ($months <= 12) {
-        return $months == 1 ? "1 month ago" : "$months months ago";
-    } else {
-        return $years == 1 ? "1 year ago" : "$years years ago";
+if (!function_exists('timeAgo')) {
+    function timeAgo($timestamp) {
+        $time_ago = strtotime($timestamp);
+        $current_time = time();
+        $time_difference = $current_time - $time_ago;
+        $seconds = $time_difference;
+        $minutes = round($seconds / 60);
+        $hours = round($seconds / 3600);
+        $days = round($seconds / 86400);
+        $weeks = round($seconds / 604800);
+        $months = round($seconds / 2629800);
+        $years = round($seconds / 31536000);
+        
+        if ($seconds <= 60) {
+            return "Just now";
+        } elseif ($minutes <= 60) {
+            return $minutes == 1 ? "1 minute ago" : "$minutes minutes ago";
+        } elseif ($hours <= 24) {
+            return $hours == 1 ? "1 hour ago" : "$hours hours ago";
+        } elseif ($days <= 7) {
+            return $days == 1 ? "1 day ago" : "$days days ago";
+        } elseif ($weeks <= 4) {
+            return $weeks == 1 ? "1 week ago" : "$weeks weeks ago";
+        } elseif ($months <= 12) {
+            return $months == 1 ? "1 month ago" : "$months months ago";
+        } else {
+            return $years == 1 ? "1 year ago" : "$years years ago";
+        }
     }
 }
 
 // Function to get icon based on type
-function getNotificationIcon($type) {
-    $icons = [
-        'breakdown' => 'fa-exclamation-circle',
-        'maintenance' => 'fa-wrench',
-        'expired' => 'fa-calendar-times',
-        'user' => 'fa-user-plus',
-        'success' => 'fa-check-circle',
-        'warning' => 'fa-exclamation-triangle',
-        'info' => 'fa-info-circle',
-        'error' => 'fa-times-circle'
-    ];
-    return isset($icons[$type]) ? $icons[$type] : 'fa-bell';
+if (!function_exists('getNotificationIcon')) {
+    function getNotificationIcon($type) {
+        $icons = [
+            'breakdown' => 'fa-exclamation-circle',
+            'maintenance' => 'fa-wrench',
+            'expired' => 'fa-calendar-times',
+            'user' => 'fa-user-plus',
+            'success' => 'fa-check-circle',
+            'warning' => 'fa-exclamation-triangle',
+            'info' => 'fa-info-circle',
+            'error' => 'fa-times-circle'
+        ];
+        return isset($icons[$type]) ? $icons[$type] : 'fa-bell';
+    }
 }
 
 // Get user info
@@ -119,8 +123,7 @@ $userImageSrc = ($userImage !== '' && file_exists(__DIR__ . '/../../uploads/user
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notifications - Admin Dashboard</title>
-    <link rel="stylesheet" href="../assets/css/sidebar.css">
-    <link rel="stylesheet" href="../assets/css/theme.css">
+    <link rel="stylesheet" href="./assets/css/sidebar.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .main-content {
@@ -326,9 +329,10 @@ $userImageSrc = ($userImage !== '' && file_exists(__DIR__ . '/../../uploads/user
     </style>
 </head>
 <body>
-    <?php include '../include/sidebar.php'; ?>
+    <?php include './include/sidebar.php'; ?>
     
     <div class="main-content">
+        <?php include './include/header.php'; ?>
         <div class="notifications-page">
             <div class="page-header">
                 <h1>Notifications <?php if ($unread_count > 0): ?><span class="badge"><?php echo $unread_count; ?> unread</span><?php endif; ?></h1>
