@@ -380,7 +380,7 @@ $userImageSrc = (!empty($userImage) && file_exists($userImagePath)) ? $userImage
             </div>
         </div>
     </main>
-
+<script src="./assets/js/script.js"></script>    
     <script>
         // Toggle edit mode
         const editBtn = document.getElementById('editBtn');
