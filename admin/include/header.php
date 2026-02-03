@@ -192,17 +192,12 @@
                         </div>
                         <ul class="profile-menu">
                             <li>
-                                <a href="#">
+                                <a href="./profile.php">
                                     <i class="fas fa-user"></i>
                                     <span>My Profile</span>
                                 </a>
                             </li>
-                            <li>
-                                <a href="#">
-                                    <i class="fas fa-question-circle"></i>
-                                    <span>Help & Support</span>
-                                </a>
-                            </li>
+                            
                             <li class="divider"></li>
                             <li>
                                 <a href="logout.php" class="logout">
