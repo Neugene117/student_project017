@@ -9,7 +9,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 // Include database connection
-include('../../config/db.php');
+include('../config/db.php');
 
 // Generate CSRF token if not exists
 if (empty($_SESSION['category_token'])) {
@@ -122,8 +122,8 @@ if ($result && $result->num_rows > 0) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Categories - Equipment Management System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/sidebar.css">
-    <link rel="stylesheet" href="../assets/css/dashboard.css">
+    <link rel="stylesheet" href="./assets/css/sidebar.css">
+    <link rel="stylesheet" href="./assets/css/dashboard.css">
     <style>
         .category-form {
             background: var(--white);
@@ -535,12 +535,12 @@ if ($result && $result->num_rows > 0) {
 </head>
 <body>
     <!-- Sidebar -->
-    <?php include '../include/sidebar.php'; ?>
+    <?php include './include/sidebar.php'; ?>
 
     <!-- Main Content -->
     <main class="main-content">
         <!-- Header -->
-        <?php include '../include/header.php'; ?>
+        <?php include './include/header.php'; ?>
 
         <!-- Page Content -->
         <div class="dashboard-content">
