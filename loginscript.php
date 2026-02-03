@@ -8,20 +8,20 @@ require_once 'config/db.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     
     // Get form inputs
-    $username = trim($_POST['email']);
+    $login_input = trim($_POST['email']); // Can be username or email
     $password = trim($_POST['password']);
     
     // Validate inputs
-    if (empty($username) || empty($password)) {
+    if (empty($login_input) || empty($password)) {
         header("Location: index.html?error=" . urlencode("Please fill in all fields"));
         exit();
     }
     
-    // Query database for user with matching username (including role)
+    // Query database for user with matching username OR email (including role)
     $query = "SELECT u.user_id, u.username, u.passwords, u.statuss, u.user_image, u.role_id, r.role_name
               FROM users u
               LEFT JOIN role r ON u.role_id = r.role_id
-              WHERE u.username = ? LIMIT 1";
+              WHERE (u.username = ? OR u.email = ?) LIMIT 1";
     
     $stmt = mysqli_prepare($conn, $query);
     
@@ -30,8 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         exit();
     }
     
-    // Bind parameters
-    mysqli_stmt_bind_param($stmt, "s", $username);
+    // Bind parameters (bind twice for username and email checks)
+    mysqli_stmt_bind_param($stmt, "ss", $login_input, $login_input);
     
     // Execute query
     mysqli_stmt_execute($stmt);

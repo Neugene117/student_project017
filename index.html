@@ -24,7 +24,7 @@
 
           <div class="input-group">
             <i class="fas fa-user"></i>
-            <input type="text" name="email" id="emailInput" placeholder="Username" required />
+            <input type="text" name="email" id="emailInput" placeholder="Username or Email" required />
           </div>
           <div class="input-group">
             <i class="fas fa-lock"></i>
@@ -96,8 +96,8 @@
           e.preventDefault();
           Swal.fire({
             icon: 'warning',
-            title: 'Username Required',
-            text: 'Please enter your username.',
+            title: 'Username or Email Required',
+            text: 'Please enter your username or email.',
             confirmButtonText: 'OK',
             confirmButtonColor: '#2563eb'
           });
@@ -137,7 +137,7 @@
             Swal.fire({
               icon: 'error',
               title: 'Login Failed',
-              html: '<p>The username or password you entered is incorrect.</p><p style="font-size: 0.9rem; color: #666; margin-top: 10px;">Please check your credentials and try again.</p>',
+              html: '<p>The username, email, or password you entered is incorrect.</p><p style="font-size: 0.9rem; color: #666; margin-top: 10px;">Please check your credentials and try again.</p>',
               confirmButtonText: 'Try Again',
               confirmButtonColor: '#2563eb',
               didClose: () => {

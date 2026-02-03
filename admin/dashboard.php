@@ -7,6 +7,189 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header("Location: ../index.html?error=" . urlencode("Please log in first"));
     exit();
 }
+
+// Database connection
+require_once '../config/db.php';
+
+// --- Fetch Stats Cards ---
+
+// Total Equipment
+$sql = "SELECT COUNT(*) as count FROM equipment";
+$result = mysqli_query($conn, $sql);
+$total_equipment = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// Active Maintenance (Status is not Completed/Done/Finished)
+$sql = "SELECT COUNT(*) as count FROM maintenance WHERE statuss NOT IN ('Completed', 'Done', 'Finished', 'Cancelled')";
+$result = mysqli_query($conn, $sql);
+$active_maintenance = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// Active Breakdowns (Status is not Fixed/Resolved/Closed)
+$sql = "SELECT COUNT(*) as count FROM breakdown WHERE statuss NOT IN ('Fixed', 'Resolved', 'Closed')";
+$result = mysqli_query($conn, $sql);
+$active_breakdowns = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// System Users
+$sql = "SELECT COUNT(*) as count FROM users";
+$result = mysqli_query($conn, $sql);
+$system_users = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// --- Secondary Stats ---
+
+// Categories
+$sql = "SELECT COUNT(*) as count FROM category";
+$result = mysqli_query($conn, $sql);
+$total_categories = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// Locations
+$sql = "SELECT COUNT(*) as count FROM equipment_location";
+$result = mysqli_query($conn, $sql);
+$total_locations = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// Schedules
+$sql = "SELECT COUNT(*) as count FROM maintenance_schedule";
+$result = mysqli_query($conn, $sql);
+$total_schedules = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// Completed Today
+$today = date('Y-m-d');
+$sql = "SELECT COUNT(*) as count FROM maintenance WHERE DATE(completed_date) = '$today' AND statuss = 'Completed'";
+$result = mysqli_query($conn, $sql);
+$completed_today = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+
+// --- Charts Data ---
+
+// Equipment Status
+$sql = "SELECT statuss, COUNT(*) as count FROM equipment GROUP BY statuss";
+$result = mysqli_query($conn, $sql);
+$status_counts = ['Operational' => 0, 'Under Maintenance' => 0, 'Broken Down' => 0, 'Inactive' => 0]; // Default keys
+
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $status = $row['statuss'];
+        $count = $row['count'];
+        
+        // Map DB status to Chart categories
+        if (stripos($status, 'Operational') !== false || stripos($status, 'Active') !== false) {
+            $status_counts['Operational'] += $count;
+        } elseif (stripos($status, 'Maintenance') !== false || stripos($status, 'Repair') !== false) {
+            $status_counts['Under Maintenance'] += $count;
+        } elseif (stripos($status, 'Broken') !== false || stripos($status, 'Breakdown') !== false) {
+            $status_counts['Broken Down'] += $count;
+        } elseif (stripos($status, 'Inactive') !== false || stripos($status, 'Disposed') !== false) {
+            $status_counts['Inactive'] += $count;
+        } else {
+             // Fallback to Inactive for unknown statuses to keep the chart clean
+            $status_counts['Inactive'] += $count;
+        }
+    }
+}
+$equipment_chart_json = json_encode(array_values($status_counts));
+$equipment_labels_json = json_encode(array_keys($status_counts));
+
+
+// Maintenance Overview (Last 7 Days)
+$dates = [];
+$completed_counts = [];
+$scheduled_counts = [];
+$overdue_counts = [];
+
+for ($i = 6; $i >= 0; $i--) {
+    $date = date('Y-m-d', strtotime("-$i days"));
+    $day_label = date('D', strtotime("-$i days")); // Mon, Tue...
+    $dates[] = $day_label;
+    
+    // Completed - Check for various completion statuses
+    $sql = "SELECT COUNT(*) as count FROM maintenance WHERE DATE(completed_date) = '$date' AND statuss IN ('Completed', 'Done', 'Finished')";
+    $res = mysqli_query($conn, $sql);
+    $completed_counts[] = ($res) ? mysqli_fetch_assoc($res)['count'] : 0;
+    
+    // Scheduled (Start date is today)
+    $sql = "SELECT COUNT(*) as count FROM maintenance_schedule WHERE DATE(start_date) = '$date'";
+    $res = mysqli_query($conn, $sql);
+    $scheduled_counts[] = ($res) ? mysqli_fetch_assoc($res)['count'] : 0;
+    
+    // Overdue/Backlog - Active maintenance requests created on or before this date
+    $sql = "SELECT COUNT(*) as count FROM maintenance WHERE DATE(created_at) <= '$date' AND statuss NOT IN ('Completed', 'Done', 'Finished', 'Cancelled')";
+    $res = mysqli_query($conn, $sql);
+    $overdue_counts[] = ($res) ? mysqli_fetch_assoc($res)['count'] : 0;
+}
+
+$maintenance_dates_json = json_encode($dates);
+$maintenance_completed_json = json_encode($completed_counts);
+$maintenance_scheduled_json = json_encode($scheduled_counts);
+$maintenance_overdue_json = json_encode($overdue_counts);
+
+
+// --- Recent Activities ---
+$recent_activities = [];
+
+// Fetch latest from Notification table
+$sql = "SELECT * FROM notification ORDER BY created_at DESC LIMIT 5";
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $recent_activities[] = $row;
+    }
+}
+
+// If no notifications, fetch latest breakdowns and maintenance
+if (empty($recent_activities)) {
+    // Fetch latest breakdowns
+    $sql = "SELECT 'breakdown' as type, issue_description as message, create_at as created_at FROM breakdown ORDER BY create_at DESC LIMIT 3";
+    $res = mysqli_query($conn, $sql);
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $recent_activities[] = $row;
+        }
+    }
+    
+    // Fetch latest maintenance
+    $sql = "SELECT 'maintenance' as type, description as message, completed_date as created_at FROM maintenance WHERE completed_date IS NOT NULL ORDER BY completed_date DESC LIMIT 3";
+    $res = mysqli_query($conn, $sql);
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $recent_activities[] = $row;
+        }
+    }
+    
+    // Sort combined
+    usort($recent_activities, function($a, $b) {
+        return strtotime($b['created_at']) - strtotime($a['created_at']);
+    });
+    $recent_activities = array_slice($recent_activities, 0, 5);
+}
+
+// --- Critical Alerts ---
+$alerts = [];
+
+// High Priority Breakdowns
+$sql = "SELECT * FROM breakdown WHERE priority = 'High' AND statuss NOT IN ('Fixed', 'Resolved') LIMIT 3";
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $alerts[] = [
+            'type' => 'high',
+            'title' => 'High Priority Breakdown',
+            'message' => $row['issue_description'],
+            'time' => $row['create_at']
+        ];
+    }
+}
+
+// Warranty Expiring (Next 30 days)
+$sql = "SELECT * FROM equipment WHERE expired_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY) LIMIT 3";
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $alerts[] = [
+            'type' => 'low',
+            'title' => 'Warranty Expiring',
+            'message' => $row['equipment_name'] . ' warranty expires soon.',
+            'time' => $row['updated_at']
+        ];
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -28,7 +211,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
         <!-- Dashboard Content -->
         <div class="dashboard-content">
-            <p class="welcome-text">Welcome back, Admin! Here's your equipment management system overview.</p>
+            <p class="welcome-text">Welcome back, <?php echo htmlspecialchars($_SESSION['username']); ?>! Here's your equipment management system overview.</p>
 
             <!-- Stats Cards -->
             <div class="stats-grid">
@@ -37,11 +220,11 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-laptop-medical"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $total_equipment; ?></h3>
                         <p class="stat-label">Total Equipment</p>
                     </div>
                     <div class="stat-trend positive">
-                        <i class="fas fa-arrow-up"></i> 0%
+                        <i class="fas fa-arrow-up"></i> Active
                     </div>
                 </div>
 
@@ -50,11 +233,11 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-wrench"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $active_maintenance; ?></h3>
                         <p class="stat-label">Active Maintenance</p>
                     </div>
                     <div class="stat-trend warning-trend">
-                        <i class="fas fa-clock"></i> Pending
+                        <i class="fas fa-clock"></i> In Progress
                     </div>
                 </div>
 
@@ -63,11 +246,11 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-exclamation-triangle"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $active_breakdowns; ?></h3>
                         <p class="stat-label">Active Breakdowns</p>
                     </div>
                     <div class="stat-trend danger">
-                        <i class="fas fa-exclamation-circle"></i> Critical
+                        <i class="fas fa-exclamation-circle"></i> Needs Action
                     </div>
                 </div>
 
@@ -76,11 +259,11 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-users"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $system_users; ?></h3>
                         <p class="stat-label">System Users</p>
                     </div>
                     <div class="stat-trend positive">
-                        <i class="fas fa-user-check"></i> Active
+                        <i class="fas fa-user-check"></i> Registered
                     </div>
                 </div>
             </div>
@@ -92,7 +275,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-layer-group"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $total_categories; ?></h3>
                         <p class="stat-label">Categories</p>
                     </div>
                 </div>
@@ -102,7 +285,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-map-marker-alt"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $total_locations; ?></h3>
                         <p class="stat-label">Locations</p>
                     </div>
                 </div>
@@ -112,7 +295,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-calendar-check"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $total_schedules; ?></h3>
                         <p class="stat-label">Schedules</p>
                     </div>
                 </div>
@@ -122,7 +305,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <i class="fas fa-check-double"></i>
                     </div>
                     <div class="stat-info">
-                        <h3 class="stat-value">0</h3>
+                        <h3 class="stat-value"><?php echo $completed_today; ?></h3>
                         <p class="stat-label">Completed Today</p>
                     </div>
                 </div>
@@ -137,9 +320,6 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         <div class="card-actions">
                             <select class="chart-filter">
                                 <option>Last 7 Days</option>
-                                <option>Last 30 Days</option>
-                                <option>Last 6 Months</option>
-                                <option>This Year</option>
                             </select>
                             <button class="icon-btn">
                                 <i class="fas fa-sync-alt"></i>
@@ -161,26 +341,19 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                             <canvas id="equipmentStatusChart"></canvas>
                         </div>
                         <div class="status-legend">
+                            <?php foreach ($status_counts as $status => $count): ?>
                             <div class="legend-item">
-                                <span class="legend-dot operational"></span>
-                                <span class="legend-text">Operational</span>
-                                <span class="legend-value">0</span>
+                                <?php 
+                                    $dotClass = 'inactive';
+                                    if (stripos($status, 'Operational') !== false) $dotClass = 'operational';
+                                    elseif (stripos($status, 'Maintenance') !== false) $dotClass = 'maintenance-dot';
+                                    elseif (stripos($status, 'Broken') !== false) $dotClass = 'broken';
+                                ?>
+                                <span class="legend-dot <?php echo $dotClass; ?>"></span>
+                                <span class="legend-text"><?php echo htmlspecialchars($status); ?></span>
+                                <span class="legend-value"><?php echo $count; ?></span>
                             </div>
-                            <div class="legend-item">
-                                <span class="legend-dot maintenance-dot"></span>
-                                <span class="legend-text">Under Maintenance</span>
-                                <span class="legend-value">0</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-dot broken"></span>
-                                <span class="legend-text">Broken Down</span>
-                                <span class="legend-value">0</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-dot inactive"></span>
-                                <span class="legend-text">Inactive</span>
-                                <span class="legend-value">0</span>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 </div>
@@ -196,51 +369,37 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                     </div>
                     <div class="card-body">
                         <div class="activity-list">
-                            <div class="activity-item">
-                                <div class="activity-icon maintenance">
-                                    <i class="fas fa-wrench"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p class="activity-text">Maintenance completed for <strong>Medical Scanner</strong></p>
-                                    <span class="activity-time">2 hours ago</span>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <div class="activity-icon breakdown">
-                                    <i class="fas fa-exclamation-triangle"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p class="activity-text">Breakdown reported: <strong>X-Ray Machine</strong> - High Priority</p>
-                                    <span class="activity-time">4 hours ago</span>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <div class="activity-icon equipment">
-                                    <i class="fas fa-plus-circle"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p class="activity-text">New equipment added to inventory</p>
-                                    <span class="activity-time">6 hours ago</span>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <div class="activity-icon user">
-                                    <i class="fas fa-user-plus"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p class="activity-text">New user registered: <strong>John Technician</strong></p>
-                                    <span class="activity-time">1 day ago</span>
-                                </div>
-                            </div>
-                            <div class="activity-item">
-                                <div class="activity-icon schedule">
-                                    <i class="fas fa-calendar-plus"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p class="activity-text">Maintenance schedule created for 5 equipment</p>
-                                    <span class="activity-time">2 days ago</span>
-                                </div>
-                            </div>
+                            <?php if (empty($recent_activities)): ?>
+                                <p class="activity-text" style="padding: 10px;">No recent activities.</p>
+                            <?php else: ?>
+                                <?php foreach ($recent_activities as $activity): ?>
+                                    <?php 
+                                        $type = strtolower($activity['type']);
+                                        $icon = 'fa-info-circle';
+                                        $iconClass = 'equipment'; // default
+                                        
+                                        if (strpos($type, 'breakdown') !== false) {
+                                            $icon = 'fa-exclamation-triangle';
+                                            $iconClass = 'breakdown';
+                                        } elseif (strpos($type, 'maintenance') !== false) {
+                                            $icon = 'fa-wrench';
+                                            $iconClass = 'maintenance';
+                                        } elseif (strpos($type, 'system') !== false) {
+                                            $icon = 'fa-server';
+                                            $iconClass = 'equipment';
+                                        }
+                                    ?>
+                                    <div class="activity-item">
+                                        <div class="activity-icon <?php echo $iconClass; ?>">
+                                            <i class="fas <?php echo $icon; ?>"></i>
+                                        </div>
+                                        <div class="activity-content">
+                                            <p class="activity-text"><?php echo htmlspecialchars($activity['message']); ?></p>
+                                            <span class="activity-time"><?php echo timeAgo($activity['created_at']); ?></span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -252,36 +411,22 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                     </div>
                     <div class="card-body">
                         <div class="alerts-list">
-                            <div class="alert-item high">
-                                <div class="alert-icon">
-                                    <i class="fas fa-exclamation-circle"></i>
-                                </div>
-                                <div class="alert-content">
-                                    <h4>High Priority Breakdown</h4>
-                                    <p>Equipment requires immediate attention</p>
-                                    <span class="alert-time">30 mins ago</span>
-                                </div>
-                            </div>
-                            <div class="alert-item medium">
-                                <div class="alert-icon">
-                                    <i class="fas fa-clock"></i>
-                                </div>
-                                <div class="alert-content">
-                                    <h4>Maintenance Overdue</h4>
-                                    <p>3 equipment past scheduled maintenance</p>
-                                    <span class="alert-time">2 hours ago</span>
-                                </div>
-                            </div>
-                            <div class="alert-item low">
-                                <div class="alert-icon">
-                                    <i class="fas fa-calendar-times"></i>
-                                </div>
-                                <div class="alert-content">
-                                    <h4>Warranty Expiring</h4>
-                                    <p>2 equipment warranties expire this month</p>
-                                    <span class="alert-time">5 hours ago</span>
-                                </div>
-                            </div>
+                            <?php if (empty($alerts)): ?>
+                                <p style="padding: 10px; color: #666;">No critical alerts.</p>
+                            <?php else: ?>
+                                <?php foreach ($alerts as $alert): ?>
+                                    <div class="alert-item <?php echo $alert['type']; ?>">
+                                        <div class="alert-icon">
+                                            <i class="fas fa-exclamation-circle"></i>
+                                        </div>
+                                        <div class="alert-content">
+                                            <h4><?php echo htmlspecialchars($alert['title']); ?></h4>
+                                            <p><?php echo htmlspecialchars($alert['message']); ?></p>
+                                            <span class="alert-time"><?php echo isset($alert['time']) ? timeAgo($alert['time']) : 'Just now'; ?></span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -323,11 +468,21 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
                         </div>
                     </div>
                 </div>
-
-
             </div>
         </div>
     </main>
+
+    <!-- Pass PHP Data to JS -->
+    <script>
+        // Data from PHP
+        var equipmentStatusData = <?php echo $equipment_chart_json; ?>;
+        var equipmentStatusLabels = <?php echo $equipment_labels_json; ?>;
+        
+        var maintenanceDates = <?php echo $maintenance_dates_json; ?>;
+        var maintenanceCompleted = <?php echo $maintenance_completed_json; ?>;
+        var maintenanceScheduled = <?php echo $maintenance_scheduled_json; ?>;
+        var maintenanceOverdue = <?php echo $maintenance_overdue_json; ?>;
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="./assets/js/script.js"></script>

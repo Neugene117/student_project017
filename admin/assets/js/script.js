@@ -97,14 +97,20 @@ if (maintenanceCtx && window.Chart) {
     maintenanceGradient.addColorStop(0, 'rgba(37, 99, 235, 0.2)');
     maintenanceGradient.addColorStop(1, 'rgba(37, 99, 235, 0.01)');
 
+    // Use global variables if available, otherwise default to empty
+    const labels = (typeof maintenanceDates !== 'undefined') ? maintenanceDates : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const completedData = (typeof maintenanceCompleted !== 'undefined') ? maintenanceCompleted : [0, 0, 0, 0, 0, 0, 0];
+    const scheduledData = (typeof maintenanceScheduled !== 'undefined') ? maintenanceScheduled : [0, 0, 0, 0, 0, 0, 0];
+    const overdueData = (typeof maintenanceOverdue !== 'undefined') ? maintenanceOverdue : [0, 0, 0, 0, 0, 0, 0];
+
     maintenanceChart = new Chart(maintenanceCtx, {
         type: 'line',
         data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            labels: labels,
             datasets: [
                 {
                     label: 'Completed',
-                    data: [12, 15, 10, 18, 14, 8, 6],
+                    data: completedData,
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     borderWidth: 3,
@@ -118,7 +124,7 @@ if (maintenanceCtx && window.Chart) {
                 },
                 {
                     label: 'Scheduled',
-                    data: [8, 12, 15, 14, 16, 11, 9],
+                    data: scheduledData,
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
                     borderWidth: 3,
@@ -132,7 +138,7 @@ if (maintenanceCtx && window.Chart) {
                 },
                 {
                     label: 'Overdue',
-                    data: [2, 3, 4, 2, 3, 5, 4],
+                    data: overdueData,
                     borderColor: '#ef4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     borderWidth: 3,
@@ -220,12 +226,16 @@ const equipmentStatusCtx = document.getElementById('equipmentStatusChart');
 let equipmentStatusChart = null;
 
 if (equipmentStatusCtx && window.Chart) {
+    // Use global variables if available
+    const statusLabels = (typeof equipmentStatusLabels !== 'undefined') ? equipmentStatusLabels : ['Operational', 'Under Maintenance', 'Broken Down', 'Inactive'];
+    const statusData = (typeof equipmentStatusData !== 'undefined') ? equipmentStatusData : [0, 0, 0, 0];
+
     equipmentStatusChart = new Chart(equipmentStatusCtx, {
         type: 'doughnut',
         data: {
-            labels: ['Operational', 'Under Maintenance', 'Broken Down', 'Inactive'],
+            labels: statusLabels,
             datasets: [{
-                data: [0, 0, 0, 0], // Will be updated with real data
+                data: statusData,
                 backgroundColor: [
                     '#10b981',
                     '#f59e0b',
@@ -357,26 +367,10 @@ if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
         refreshBtn.querySelector('i').style.animation = 'spin 1s ease';
         
-        // Update chart with new random data
-        const newData = [
-            Math.floor(Math.random() * 20) + 5,
-            Math.floor(Math.random() * 20) + 5,
-            Math.floor(Math.random() * 20) + 5,
-            Math.floor(Math.random() * 20) + 5,
-            Math.floor(Math.random() * 20) + 5,
-            Math.floor(Math.random() * 20) + 5,
-            Math.floor(Math.random() * 20) + 5
-        ];
-
-        if (maintenanceChart) {
-            maintenanceChart.data.datasets[0].data = newData;
-            maintenanceChart.update();
-        }
-        
+        // Reload page to fetch fresh data
         setTimeout(() => {
-            refreshBtn.querySelector('i').style.animation = '';
-            showNotification('Data refreshed successfully!');
-        }, 1000);
+            location.reload();
+        }, 500);
     });
 }
 
@@ -517,6 +511,8 @@ updateSystemStatus();
 
 // Simulate real-time data updates (you'll replace this with actual API calls)
 function simulateDataUpdates() {
+    // Disabled simulation to use real PHP data
+    /*
     setInterval(() => {
         if (!equipmentStatusChart) {
             return;
@@ -540,6 +536,7 @@ function simulateDataUpdates() {
             legendValues[3].textContent = inactive;
         }
     }, 5000); // Update every 5 seconds (adjust as needed)
+    */
 }
 
 // Start simulation (comment this out when you have real API integration)
