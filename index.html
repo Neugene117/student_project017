@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html>
   <head>    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+    <link rel="icon" type="image/JPG" href="./static/images/logo.JPG">
     <link rel="stylesheet" href="./static/css/styles.css" />    <!-- SweetAlert2 CSS and JS from CDN -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-material-ui@5/material-ui.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Custom login messages handler -->
     <script src="./js/login-messages.js"></script>
-    <title>INES - Automatic Timetable System</title>
+    <title>Reg - Automatic Timetable System</title>
     
   </head>
   <body class="signin-body">
@@ -15,15 +16,15 @@
       <div class="form-container sign-in-container">
         <form action="loginscript.php" method="POST" id="loginForm">
           <div class="form-header">
-            <img src="./static/images/logo.JPG" alt="INES Logo" class="logo">
+            <img src="./static/images/logo.JPG" alt="Reg Logo" class="logo">
             <h1>Sign In</h1>
           </div>
 
           <!-- User Type Selection -->
 
           <div class="input-group">
-            <i class="fas fa-envelope"></i>
-            <input type="email" name="email" id="emailInput" placeholder="Academic Email" required />
+            <i class="fas fa-user"></i>
+            <input type="text" name="email" id="emailInput" placeholder="Username" required />
           </div>
           <div class="input-group">
             <i class="fas fa-lock"></i>
@@ -78,57 +79,48 @@
             // Update hidden input value
             const userType = this.dataset.type;
             userTypeInput.value = userType;
-
-            // Update email placeholder and show/hide student register link
-            if (userType === 'student') {
-              emailInput.placeholder = 'Student Email (@ines.ac.rw)';
-              studentRegisterLink.style.display = 'block';
-            } else {
-              emailInput.placeholder = 'Academic Email';
-              studentRegisterLink.style.display = 'none';
-            }
           });
         });
       });
 
       // Form submission handling
       document.querySelector('form').addEventListener('submit', function(e) {
+        const usernameInput = document.getElementById('emailInput');
+        const passwordInput = document.querySelector('input[name="password"]');
         const submitBtn = this.querySelector('button[type="submit"]');
-        const errorMessage = document.getElementById('errorMessage');
-
-        // Hide any existing error messages
-        errorMessage.style.display = 'none';
+        
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        if (!username) {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'warning',
+            title: 'Username Required',
+            text: 'Please enter your username.',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#2563eb'
+          });
+          usernameInput.focus();
+          return;
+        }
+        
+        if (!password) {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'warning',
+            title: 'Password Required',
+            text: 'Please enter your password.',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#2563eb'
+          });
+          passwordInput.focus();
+          return;
+        }
 
         // Add loading state
         submitBtn.classList.add('loading');
       });
-
-      // Function to show error message
-      function showError(message) {
-        const errorMessage = document.getElementById('errorMessage');
-        const errorText = document.getElementById('errorText');
-
-        errorText.textContent = message;
-        errorMessage.style.display = 'flex';
-
-        // Remove loading state from button
-        const submitBtn = document.querySelector('button[type="submit"]');
-        submitBtn.classList.remove('loading');
-      }
-
-      // Function to show success message
-      function showSuccess(message) {
-        const errorMessage = document.getElementById('errorMessage');
-        const errorText = document.getElementById('errorText');
-
-        errorMessage.className = 'success-message';
-        errorText.textContent = message;
-        errorMessage.style.display = 'flex';
-
-        // Change icon to success
-        const icon = errorMessage.querySelector('i');
-        icon.className = 'fas fa-check-circle';
-      }
 
       // Check for error messages from PHP
       document.addEventListener('DOMContentLoaded', function() {
@@ -138,9 +130,46 @@
         const success = urlParams.get('success');
 
         if (error) {
-          showError(decodeURIComponent(error));
+          const decodedError = decodeURIComponent(error);
+          
+          // Handle specific error types
+          if (decodedError === 'incorrect_password') {
+            Swal.fire({
+              icon: 'error',
+              title: 'Login Failed',
+              html: '<p>The username or password you entered is incorrect.</p><p style="font-size: 0.9rem; color: #666; margin-top: 10px;">Please check your credentials and try again.</p>',
+              confirmButtonText: 'Try Again',
+              confirmButtonColor: '#2563eb',
+              didClose: () => {
+                document.getElementById('emailInput').focus();
+                document.getElementById('emailInput').value = '';
+                document.querySelector('input[name="password"]').value = '';
+              }
+            });
+          } else {
+            // General error message
+            Swal.fire({
+              icon: 'error',
+              title: 'Login Failed',
+              text: decodedError,
+              confirmButtonText: 'OK',
+              confirmButtonColor: '#2563eb'
+            });
+          }
+          
+          // Clear the error from URL
+          window.history.replaceState({}, document.title, window.location.pathname);
         } else if (success) {
-          showSuccess(decodeURIComponent(success));
+          Swal.fire({
+            icon: 'success',
+            title: 'Success',
+            text: decodeURIComponent(success),
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#2563eb'
+          });
+          
+          // Clear the success from URL
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
       });
 

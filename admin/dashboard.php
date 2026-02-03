@@ -1,3 +1,13 @@
+<?php
+// Start session
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header("Location: ../index.html?error=" . urlencode("Please log in first"));
+    exit();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -54,7 +64,7 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link">
+                    <a href="./pages/categories.php" class="nav-link">
                         <i class="fas fa-layer-group"></i>
                         <span class="nav-text">Categories</span>
                     </a>
@@ -95,7 +105,7 @@
         <div class="sidebar-footer">
             <div class="user-info">
                 <i class="fas fa-user-circle"></i>
-                <span class="user-name">Admin User</span>
+                <span class="user-name"><?php echo htmlspecialchars($_SESSION['username']); ?></span>
             </div>
         </div>
     </aside>
@@ -180,17 +190,17 @@
                 <!-- Profile -->
                 <div class="profile-wrapper">
                     <button class="profile-btn" id="profileBtn">
-                        <img src="https://ui-avatars.com/api/?name=Admin+User&background=2563eb&color=fff" alt="Profile" class="profile-img">
-                        <span class="profile-name">Admin User</span>
+                        <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($_SESSION['username']); ?>&background=2563eb&color=fff" alt="Profile" class="profile-img">
+                        <span class="profile-name"><?php echo htmlspecialchars($_SESSION['username']); ?></span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     
                     <div class="profile-dropdown" id="profileDropdown">
                         <div class="profile-header">
-                            <img src="https://ui-avatars.com/api/?name=Admin+User&background=2563eb&color=fff" alt="Profile">
+                            <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($_SESSION['username']); ?>&background=2563eb&color=fff" alt="Profile">
                             <div class="profile-info">
-                                <h4>Admin User</h4>
-                                <p>admin@equipment.com</p>
+                                <h4><?php echo htmlspecialchars($_SESSION['username']); ?></h4>
+                                <p>User Account</p>
                             </div>
                         </div>
                         <ul class="profile-menu">
@@ -208,7 +218,7 @@
                             </li>
                             <li class="divider"></li>
                             <li>
-                                <a href="#" class="logout">
+                                <a href="logout.php" class="logout">
                                     <i class="fas fa-sign-out-alt"></i>
                                     <span>Logout</span>
                                 </a>

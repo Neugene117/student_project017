@@ -23,7 +23,7 @@ body {
   overflow: hidden;
   width: 900px;
   max-width: 100%;
-  min-height: 600px;
+  min-height: 520px;
   display: flex;
 }
 
