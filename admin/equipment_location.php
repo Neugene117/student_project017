@@ -4,145 +4,127 @@ session_start();
 
 // Check if user is logged in
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: ../../index.html?error=" . urlencode("Please log in first"));
+    header("Location: ../index.html?error=" . urlencode("Please log in first"));
     exit();
 }
+// Check if user has admin role
+$user_role = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : null;
+$is_admin = ($user_role === 'admin');
 
+// If user is not admin, redirect them
+if (!$is_admin) {
+    header("Location: ./dashboard.php?error=" . urlencode("You do not have permission to access this page"));
+    exit();
+}
 // Include database connection
 include('../config/db.php');
 
-// Check if user has admin role
-$user_id = $_SESSION['user_id'] ?? null;
-if (!$user_id) {
-    header("Location: ../../index.html?error=" . urlencode("User information not found"));
-    exit();
-}
-
-// Fetch user's role
-$sql_role = "SELECT r.role_name FROM users u 
-             JOIN role r ON u.role_id = r.role_id 
-             WHERE u.user_id = ?";
-$stmt_role = $conn->prepare($sql_role);
-$stmt_role->bind_param("i", $user_id);
-$stmt_role->execute();
-$result_role = $stmt_role->get_result();
-
-if ($result_role->num_rows === 0) {
-    header("Location: ../../index.html?error=" . urlencode("User role not found"));
-    exit();
-}
-
-$user_data = $result_role->fetch_assoc();
-$user_role = $user_data['role_name'];
-$stmt_role->close();
-
-// Check if user is admin
-$is_admin = ($user_role === 'admin');
-if (!$is_admin) {
-    header("Location: dashboard.php?error=" . urlencode("You do not have permission to manage categories"));
-    exit();
-}
-
 // Generate CSRF token if not exists
-if (empty($_SESSION['category_token'])) {
-    $_SESSION['category_token'] = bin2hex(random_bytes(32));
+if (empty($_SESSION['location_token'])) {
+    $_SESSION['location_token'] = bin2hex(random_bytes(32));
+}
+
+// Prevent non-admin users from performing any POST operations
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_admin) {
+    $error_message = "You do not have permission to perform this action.";
 }
 
 // Check if redirect came from successful insert
 if (isset($_GET['success']) && $_GET['success'] == '1') {
-    $success_message = "Category added successfully!";
+    $success_message = "Location added successfully!";
 }
 
 // Check if redirect came from successful edit
 if (isset($_GET['success']) && $_GET['success'] == '2') {
-    $success_message = "Category updated successfully!";
+    $success_message = "Location updated successfully!";
 }
 
-// Handle Add Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
+// Handle Add Location
+if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
     // Verify CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['category_token']) {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['location_token']) {
         $error_message = "Security token validation failed. Please try again.";
     } else {
-        $category_name = trim($_POST['category_name']);
+        $location_name = trim($_POST['location_name']);
+        $description = trim($_POST['description']);
         
-        if (!empty($category_name)) {
-            $user_id = $_SESSION['user_id'] ?? 1; // Default to 1 if not set
-            $sql = "INSERT INTO category (category_name, user_id) VALUES (?, ?)";
+        if (!empty($location_name)) {
+            $sql = "INSERT INTO equipment_location (location_name, description) VALUES (?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("si", $category_name, $user_id);
+            $stmt->bind_param("ss", $location_name, $description);
             
             if ($stmt->execute()) {
                 $stmt->close();
                 // Regenerate token after successful submission
-                $_SESSION['category_token'] = bin2hex(random_bytes(32));
+                $_SESSION['location_token'] = bin2hex(random_bytes(32));
                 // Redirect to prevent duplicate submission on refresh
                 header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
                 exit();
             } else {
-                $error_message = "Error adding category: " . $conn->error;
+                $error_message = "Error adding location: " . $conn->error;
             }
             $stmt->close();
         } else {
-            $error_message = "Category name cannot be empty!";
+            $error_message = "Location name cannot be empty!";
         }
     }
 }
 
-// Handle Delete Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
-    $category_id = intval($_POST['category_id']);
+// Handle Delete Location
+if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    $location_id = intval($_POST['location_id']);
     
-    $sql = "DELETE FROM category WHERE category_id = ?";
+    $sql = "DELETE FROM equipment_location WHERE location_id = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $category_id);
+    $stmt->bind_param("i", $location_id);
     
     if ($stmt->execute()) {
-        $success_message = "Category deleted successfully!";
+        $success_message = "Location deleted successfully!";
     } else {
-        $error_message = "Error deleting category: " . $conn->error;
+        $error_message = "Error deleting location: " . $conn->error;
     }
     $stmt->close();
 }
 
-// Handle Edit Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
+// Handle Edit Location
+if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
     // Verify CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['category_token']) {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['location_token']) {
         $error_message = "Security token validation failed. Please try again.";
     } else {
-        $category_id = intval($_POST['category_id']);
-        $category_name = trim($_POST['category_name']);
+        $location_id = intval($_POST['location_id']);
+        $location_name = trim($_POST['location_name']);
+        $description = trim($_POST['description']);
         
-        if (!empty($category_name)) {
-            $sql = "UPDATE category SET category_name = ? WHERE category_id = ?";
+        if (!empty($location_name)) {
+            $sql = "UPDATE equipment_location SET location_name = ?, description = ? WHERE location_id = ?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("si", $category_name, $category_id);
+            $stmt->bind_param("ssi", $location_name, $description, $location_id);
             
             if ($stmt->execute()) {
                 $stmt->close();
                 // Regenerate token after successful submission
-                $_SESSION['category_token'] = bin2hex(random_bytes(32));
+                $_SESSION['location_token'] = bin2hex(random_bytes(32));
                 // Redirect to prevent duplicate submission on refresh
                 header("Location: " . $_SERVER['PHP_SELF'] . "?success=2");
                 exit();
             } else {
-                $error_message = "Error updating category: " . $conn->error;
+                $error_message = "Error updating location: " . $conn->error;
             }
             $stmt->close();
         } else {
-            $error_message = "Category name cannot be empty!";
+            $error_message = "Location name cannot be empty!";
         }
     }
 }
 
-// Fetch all categories
-$sql = "SELECT * FROM category ORDER BY created_at DESC";
+// Fetch all locations
+$sql = "SELECT * FROM equipment_location ORDER BY created_at DESC";
 $result = $conn->query($sql);
-$categories = [];
+$locations = [];
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
-        $categories[] = $row;
+        $locations[] = $row;
     }
 }
 ?>
@@ -152,12 +134,12 @@ if ($result && $result->num_rows > 0) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Categories - Equipment Management System</title>
+    <title>Equipment Locations - Equipment Management System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="./assets/css/sidebar.css">
     <link rel="stylesheet" href="./assets/css/dashboard.css">
     <style>
-        .category-form {
+        .location-form {
             background: var(--white);
             padding: 24px;
             border-radius: 16px;
@@ -184,6 +166,7 @@ if ($result && $result->num_rows > 0) {
             border-radius: 8px;
             font-size: 14px;
             transition: var(--transition);
+            font-family: inherit;
         }
 
         .form-group input:focus,
@@ -298,24 +281,24 @@ if ($result && $result->num_rows > 0) {
             border-left: 4px solid #dc2626;
         }
 
-        .categories-table {
+        .locations-table {
             background: var(--white);
             border-radius: 16px;
             box-shadow: var(--shadow);
             overflow: hidden;
         }
 
-        .categories-table table {
+        .locations-table table {
             width: 100%;
             border-collapse: collapse;
         }
 
-        .categories-table thead {
+        .locations-table thead {
             background: var(--gray-50);
             border-bottom: 2px solid var(--gray-200);
         }
 
-        .categories-table th {
+        .locations-table th {
             padding: 16px;
             text-align: left;
             font-weight: 600;
@@ -323,26 +306,26 @@ if ($result && $result->num_rows > 0) {
             font-size: 14px;
         }
 
-        .categories-table td {
+        .locations-table td {
             padding: 16px;
             border-bottom: 1px solid var(--gray-200);
             color: var(--gray-700);
         }
 
-        .categories-table tbody tr:hover {
+        .locations-table tbody tr:hover {
             background: var(--gray-50);
         }
 
-        .categories-table tbody tr:last-child td {
+        .locations-table tbody tr:last-child td {
             border-bottom: none;
         }
 
-        .category-id {
+        .location-id {
             font-weight: 600;
             color: var(--primary-blue);
         }
 
-        .category-actions {
+        .location-actions {
             display: flex;
             gap: 8px;
         }
@@ -377,7 +360,7 @@ if ($result && $result->num_rows > 0) {
                 grid-template-columns: 1fr;
             }
 
-            .category-actions {
+            .location-actions {
                 flex-direction: column;
             }
 
@@ -388,7 +371,7 @@ if ($result && $result->num_rows > 0) {
 
         .stats-mini {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: 30%;
             gap: 16px;
             margin-bottom: 30px;
         }
@@ -527,16 +510,19 @@ if ($result && $result->num_rows > 0) {
             color: var(--gray-800);
         }
 
-        .modal-form .form-group input {
+        .modal-form .form-group input,
+        .modal-form .form-group textarea {
             width: 100%;
             padding: 12px;
             border: 2px solid var(--gray-200);
             border-radius: 8px;
             font-size: 14px;
             transition: var(--transition);
+            font-family: inherit;
         }
 
-        .modal-form .form-group input:focus {
+        .modal-form .form-group input:focus,
+        .modal-form .form-group textarea:focus {
             outline: none;
             border-color: var(--primary-blue);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
@@ -595,101 +581,130 @@ if ($result && $result->num_rows > 0) {
             <div class="stats-mini">
                 <div class="stat-mini-card">
                     <div class="stat-mini-icon">
-                        <i class="fas fa-layer-group"></i>
+                        <i class="fas fa-map-marker-alt"></i>
                     </div>
                     <div class="stat-mini-content">
-                        <h3><?php echo count($categories); ?></h3>
-                        <p>Total Categories</p>
+                        <h3><?php echo count($locations); ?></h3>
+                        <p>Total Locations</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Add Category Button -->
+            <!-- Add Location Button -->
+            <?php if ($is_admin): ?>
             <div style="margin-bottom: 30px;">
-                <button id="addCategoryBtn" class="btn-submit" style="margin: 0;">
-                    <i class="fas fa-plus"></i> Add New Category
+                <button id="addLocationBtn" class="btn-submit" style="margin: 0;">
+                    <i class="fas fa-plus"></i> Add New Location
                 </button>
             </div>
+            <?php endif; ?>
 
-            <!-- Add Category Modal -->
-            <div id="addCategoryModal" class="modal">
+            <!-- Add Location Modal -->
+            <?php if ($is_admin): ?>
+            <div id="addLocationModal" class="modal">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h2>
                             <i class="fas fa-plus-circle" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                            Add New Category
+                            Add New Location
                         </h2>
                         <button class="modal-close" id="closeModalBtn">&times;</button>
                     </div>
 
                     <form method="POST" action="" class="modal-form">
                         <div class="form-group">
-                            <label for="modal_category_name">Category Name</label>
+                            <label for="modal_location_name">Location Name</label>
                             <input 
                                 type="text" 
-                                id="modal_category_name" 
-                                name="category_name" 
-                                placeholder="Enter category name (e.g., Medical Equipment, Tools, etc.)"
+                                id="modal_location_name" 
+                                name="location_name" 
+                                placeholder="Enter location name (e.g., Building A, Room 101, etc.)"
                                 required
                             >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="modal_description">Description</label>
+                            <textarea 
+                                id="modal_description" 
+                                name="description" 
+                                placeholder="Enter location description (optional)"
+                                rows="4"
+                            ></textarea>
                         </div>
 
                         <div class="modal-footer">
                             <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
                             <button type="submit" class="btn-submit">
-                                <i class="fas fa-plus"></i> Add Category
+                                <i class="fas fa-plus"></i> Add Location
                             </button>
                         </div>
 
                         <input type="hidden" name="action" value="add">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['location_token']); ?>">
                     </form>
                 </div>
             </div>
+            <?php endif; ?>
 
-            <!-- Edit Category Modal -->
-            <div id="editCategoryModal" class="modal">
+            <!-- Edit Location Modal -->
+            <?php if ($is_admin): ?>
+            <div id="editLocationModal" class="modal">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h2>
                             <i class="fas fa-edit" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                            Edit Category
+                            Edit Location
                         </h2>
                         <button class="modal-close" id="closeEditModalBtn">&times;</button>
                     </div>
 
                     <form method="POST" action="" class="modal-form">
                         <div class="form-group">
-                            <label for="edit_category_name">Category Name</label>
+                            <label for="edit_location_name">Location Name</label>
                             <input 
                                 type="text" 
-                                id="edit_category_name" 
-                                name="category_name" 
-                                placeholder="Enter category name"
+                                id="edit_location_name" 
+                                name="location_name" 
+                                placeholder="Enter location name"
                                 required
                             >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="edit_description">Description</label>
+                            <textarea 
+                                id="edit_description" 
+                                name="description" 
+                                placeholder="Enter location description (optional)"
+                                rows="4"
+                            ></textarea>
                         </div>
 
                         <div class="modal-footer">
                             <button type="button" class="btn-cancel" id="cancelEditBtn">Cancel</button>
                             <button type="submit" class="btn-submit">
-                                <i class="fas fa-save"></i> Update Category
+                                <i class="fas fa-save"></i> Update Location
                             </button>
                         </div>
 
                         <input type="hidden" name="action" value="edit">
-                        <input type="hidden" name="category_id" id="edit_category_id" value="">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
+                        <input type="hidden" name="location_id" id="edit_location_id" value="">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['location_token']); ?>">
                     </form>
                 </div>
             </div>
-            <div class="categories-table">
-                <?php if (count($categories) > 0): ?>
+            <?php endif; ?>
+
+            <!-- Locations Table -->
+            <div class="locations-table">
+                <?php if (count($locations) > 0): ?>
                     <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Category Name</th>
+                                <th>Location Name</th>
+                                <th>Description</th>
                                 <th>Created Date</th>
                                 <th>Actions</th>
                             </tr>
@@ -697,27 +712,39 @@ if ($result && $result->num_rows > 0) {
                         <tbody>
                             <?php 
                             $counter = 1;
-                            foreach ($categories as $category): 
+                            foreach ($locations as $location): 
                             ?>
                                 <tr>
-                                    <td class="category-id">#<?php echo $counter; ?></td>
-                                    <td><?php echo htmlspecialchars($category['category_name']); ?></td>
+                                    <td class="location-id">#<?php echo $counter; ?></td>
+                                    <td><?php echo htmlspecialchars($location['location_name']); ?></td>
                                     <td>
                                         <span class="created-date">
-                                            <?php echo date('M d, Y H:i', strtotime($category['created_at'])); ?>
+                                            <?php 
+                                            $description = htmlspecialchars($location['description']);
+                                            echo strlen($description) > 50 ? substr($description, 0, 50) . '...' : $description;
+                                            ?>
                                         </span>
                                     </td>
                                     <td>
-                                        <button type="button" class="btn-icon btn-edit" onclick="openEditModal(<?php echo $category['category_id']; ?>, '<?php echo htmlspecialchars($category['category_name'], ENT_QUOTES); ?>');" title="Edit">
+                                        <span class="created-date">
+                                            <?php echo date('M d, Y H:i', strtotime($location['created_at'])); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php if ($is_admin): ?>
+                                        <button type="button" class="btn-icon btn-edit" onclick="openEditModal(<?php echo $location['location_id']; ?>, '<?php echo htmlspecialchars($location['location_name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($location['description'], ENT_QUOTES); ?>');" title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this category?');">
+                                        <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this location?');">
                                             <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="category_id" value="<?php echo $category['category_id']; ?>">
+                                            <input type="hidden" name="location_id" value="<?php echo $location['location_id']; ?>">
                                             <button type="submit" class="btn-icon btn-delete" title="Delete">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </form>
+                                        <?php else: ?>
+                                        <span style="color: var(--gray-500); font-size: 13px;">No permissions</span>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php 
@@ -729,8 +756,8 @@ if ($result && $result->num_rows > 0) {
                 <?php else: ?>
                     <div class="empty-state">
                         <i class="fas fa-inbox"></i>
-                        <h3>No Categories Yet</h3>
-                        <p>Start by adding your first equipment category above.</p>
+                        <h3>No Locations Yet</h3>
+                        <p>Start by adding your first equipment location above.</p>
                     </div>
                 <?php endif; ?>
             </div>
@@ -738,23 +765,24 @@ if ($result && $result->num_rows > 0) {
     </main>
 
     <script src="./assets/js/script.js"></script>
+    <?php if ($is_admin): ?>
     <script>
         // Get modal elements
-        const addCategoryModal = document.getElementById('addCategoryModal');
-        const addCategoryBtn = document.getElementById('addCategoryBtn');
+        const addLocationModal = document.getElementById('addLocationModal');
+        const addLocationBtn = document.getElementById('addLocationBtn');
         const closeModalBtn = document.getElementById('closeModalBtn');
         const cancelBtn = document.getElementById('cancelBtn');
-        const modalForm = addCategoryModal.querySelector('form');
+        const modalForm = addLocationModal.querySelector('form');
 
         // Open modal
-        addCategoryBtn.addEventListener('click', function() {
-            addCategoryModal.classList.add('active');
-            document.getElementById('modal_category_name').focus();
+        addLocationBtn.addEventListener('click', function() {
+            addLocationModal.classList.add('active');
+            document.getElementById('modal_location_name').focus();
         });
 
         // Close modal
         function closeModal() {
-            addCategoryModal.classList.remove('active');
+            addLocationModal.classList.remove('active');
             modalForm.reset();
         }
 
@@ -762,34 +790,35 @@ if ($result && $result->num_rows > 0) {
         cancelBtn.addEventListener('click', closeModal);
 
         // Close modal when clicking outside of it
-        addCategoryModal.addEventListener('click', function(event) {
-            if (event.target === addCategoryModal) {
+        addLocationModal.addEventListener('click', function(event) {
+            if (event.target === addLocationModal) {
                 closeModal();
             }
         });
 
         // Prevent modal close when clicking inside modal content
-        addCategoryModal.querySelector('.modal-content').addEventListener('click', function(event) {
+        addLocationModal.querySelector('.modal-content').addEventListener('click', function(event) {
             event.stopPropagation();
         });
 
-        // ========== Edit Category Modal ==========
-        const editCategoryModal = document.getElementById('editCategoryModal');
+        // ========== Edit Location Modal ==========
+        const editLocationModal = document.getElementById('editLocationModal');
         const closeEditModalBtn = document.getElementById('closeEditModalBtn');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
-        const editModalForm = editCategoryModal.querySelector('form');
+        const editModalForm = editLocationModal.querySelector('form');
 
         // Open edit modal
-        function openEditModal(categoryId, categoryName) {
-            document.getElementById('edit_category_id').value = categoryId;
-            document.getElementById('edit_category_name').value = categoryName;
-            editCategoryModal.classList.add('active');
-            document.getElementById('edit_category_name').focus();
+        function openEditModal(locationId, locationName, description) {
+            document.getElementById('edit_location_id').value = locationId;
+            document.getElementById('edit_location_name').value = locationName;
+            document.getElementById('edit_description').value = description;
+            editLocationModal.classList.add('active');
+            document.getElementById('edit_location_name').focus();
         }
 
         // Close edit modal
         function closeEditModal() {
-            editCategoryModal.classList.remove('active');
+            editLocationModal.classList.remove('active');
             editModalForm.reset();
         }
 
@@ -797,16 +826,17 @@ if ($result && $result->num_rows > 0) {
         cancelEditBtn.addEventListener('click', closeEditModal);
 
         // Close modal when clicking outside of it
-        editCategoryModal.addEventListener('click', function(event) {
-            if (event.target === editCategoryModal) {
+        editLocationModal.addEventListener('click', function(event) {
+            if (event.target === editLocationModal) {
                 closeEditModal();
             }
         });
 
         // Prevent modal close when clicking inside modal content
-        editCategoryModal.querySelector('.modal-content').addEventListener('click', function(event) {
+        editLocationModal.querySelector('.modal-content').addEventListener('click', function(event) {
             event.stopPropagation();
         });
     </script>
+    <?php endif; ?>
 </body>
 </html>

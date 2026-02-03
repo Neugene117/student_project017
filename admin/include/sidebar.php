@@ -45,7 +45,7 @@ if (isset($conn)) {
                 </a>
             </li>
             <li class="nav-item <?php echo $current_page == 'equipment.php' ? 'active' : ''; ?>">
-                <a href="#" class="nav-link">
+                <a href="equipment.php" class="nav-link">
                     <i class="fas fa-laptop-medical"></i>
                     <span class="nav-text">Equipment</span>
                     <span class="badge"><?php echo $sidebar_equipment_count; ?></span>
@@ -83,11 +83,15 @@ if (isset($conn)) {
                     <span class="nav-text">Categories</span>
                 </a>
             </li>
+
             <?php endif; ?>
 
             <?php if ($role_id == 1 || $role_id == 2 || $role_id == 3): // All roles ?>
             <li class="nav-item <?php echo $current_page == 'locations.php' ? 'active' : ''; ?>">
                 <a href="#" class="nav-link">
+
+            <li class="nav-item <?php echo $current_page == 'equipment_location.php' ? 'active' : ''; ?>">
+                <a href="equipment_location.php" class="nav-link">
                     <i class="fas fa-map-marker-alt"></i>
                     <span class="nav-text">Locations</span>
                 </a>
