@@ -100,13 +100,13 @@ if (isset($conn)) {
 
             <?php if ($role_id == 1): // Admin only ?>
                 <li class="nav-item <?php echo $current_page == 'users.php' ? 'active' : ''; ?>">
-                    <a href="#" class="nav-link">
+                    <a href="./users.php" class="nav-link">
                         <i class="fas fa-users"></i>
                         <span class="nav-text">Users</span>
                     </a>
                 </li>
-                <li class="nav-item <?php echo $current_page == 'roles.php' ? 'active' : ''; ?>">
-                    <a href="#" class="nav-link">
+                <li class="nav-item <?php echo $current_page == 'role.php' ? 'active' : ''; ?>">
+                    <a href="./role.php" class="nav-link">
                         <i class="fas fa-user-shield"></i>
                         <span class="nav-text">Roles</span>
                     </a>
