@@ -114,8 +114,8 @@ if (isset($conn)) {
             <?php endif; ?>
 
             <?php if ($role_id == 1 || $role_id == 2 || $role_id == 3): // All roles ?>
-                <li class="nav-item <?php echo $current_page == 'reports.php' ? 'active' : ''; ?>">
-                    <a href="#" class="nav-link">
+                <li class="nav-item <?php echo $current_page == 'report.php' ? 'active' : ''; ?>">
+                    <a href="./report.php" class="nav-link">
                         <i class="fas fa-chart-bar"></i>
                         <span class="nav-text">Reports</span>
                     </a>
