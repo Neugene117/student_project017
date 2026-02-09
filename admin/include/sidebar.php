@@ -64,8 +64,8 @@ if (isset($conn)) {
                         <span class="badge warning"><?php echo $sidebar_maintenance_count; ?></span>
                     </a>
                 </li>
-                <li class="nav-item <?php echo $current_page == 'schedules.php' ? 'active' : ''; ?>">
-                    <a href="#" class="nav-link">
+                <li class="nav-item <?php echo ($current_page == 'schedules.php' || $current_page == 'schedules_technician.php') ? 'active' : ''; ?>">
+                    <a href="<?php echo ($role_id == 2) ? 'schedules_technician.php' : 'schedules.php'; ?>" class="nav-link">
                         <i class="fas fa-calendar-alt"></i>
                         <span class="nav-text">Schedules</span>
                     </a>

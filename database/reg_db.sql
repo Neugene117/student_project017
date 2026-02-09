@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 03, 2026 at 12:05 PM
+-- Generation Time: Feb 09, 2026 at 11:35 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -53,6 +53,17 @@ CREATE TABLE `category` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `category`
+--
+
+INSERT INTO `category` (`category_id`, `category_name`, `user_id`, `created_at`, `updated_at`) VALUES
+(2, 'name', 1, '2026-02-03 14:02:06', '2026-02-03 14:02:06'),
+(3, 'oziya', 1, '2026-02-03 14:32:37', '2026-02-03 15:01:30'),
+(4, 'Machine', 1, '2026-02-03 14:32:52', '2026-02-03 17:57:37'),
+(5, 'manz', 1, '2026-02-03 14:33:04', '2026-02-03 14:33:04'),
+(6, 'yayobye', 1, '2026-02-03 14:46:20', '2026-02-03 14:57:37');
+
 -- --------------------------------------------------------
 
 --
@@ -74,6 +85,14 @@ CREATE TABLE `equipment` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `equipment`
+--
+
+INSERT INTO `equipment` (`id`, `equipment_name`, `equipment_image`, `category_id`, `serial_number`, `equipment_location_id`, `purchase_date`, `starting_date`, `expired_date`, `statuss`, `user_id`, `created_at`, `updated_at`) VALUES
+(1, 'generator', 'equipment_1770138325_69822ad5d753e.JPG', 4, '007GDF66', 2, '2025-12-10', NULL, NULL, 'Active', 1, '2026-02-03 17:05:25', '2026-02-03 17:05:25'),
+(5, 'cyamatwi', 'equipment_1770143069_69823d5d675a2.png', 4, '007GD', 2, '2025-12-10', '0000-00-00', '2026-03-14', 'Active', 1, '2026-02-03 18:24:29', '2026-02-03 18:24:29');
 
 -- --------------------------------------------------------
 
@@ -105,6 +124,14 @@ CREATE TABLE `equipment_location` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `equipment_location`
+--
+
+INSERT INTO `equipment_location` (`location_id`, `location_name`, `description`, `created_at`, `updated_at`) VALUES
+(1, 'kicukiro', 'kicukiro/kigali/Rwanda', '2026-02-03 16:07:00', '2026-02-03 16:07:22'),
+(2, 'karongi', 'western province', '2026-02-03 16:38:04', '2026-02-03 16:38:04');
 
 -- --------------------------------------------------------
 
@@ -172,6 +199,15 @@ CREATE TABLE `role` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `role`
+--
+
+INSERT INTO `role` (`role_id`, `role_name`, `created_at`, `updated_at`) VALUES
+(1, 'admin', '2026-02-03 12:54:17', '2026-02-03 12:54:17'),
+(2, 'technician ', '2026-02-03 12:54:17', '2026-02-03 12:54:17'),
+(3, 'owner', '2026-02-03 12:54:29', '2026-02-03 12:54:29');
+
 -- --------------------------------------------------------
 
 --
@@ -193,6 +229,14 @@ CREATE TABLE `users` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `last_login` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `users`
+--
+
+INSERT INTO `users` (`user_id`, `role_id`, `firstname`, `lastname`, `gander`, `user_image`, `email`, `username`, `passwords`, `statuss`, `created_at`, `updated_at`, `last_login`) VALUES
+(1, 1, 'manzi', 'eugene', 'Male', '1770145677_6982478d64ae6.jpg', 'nendayishimiye@gmail.com', 'ne', '$2y$10$HPOlnVfej/yMtIzPBzZ0NegEiYk53Vy3DCAQ1xHP6afvnCGGF9Opa', '1', '2026-02-03 12:57:19', '2026-02-03 21:03:02', NULL),
+(2, 2, 'fabrice', 'igiraneza', 'male', NULL, 'igiraneza@gmail.com', 'manzi', '$2y$10$slXmwhpIddieKv5SGIKDu.v0/veGtU3k8CRdmFyMex3wU4EvPVXk6', '1', '2026-02-03 16:35:27', '2026-02-03 16:35:27', NULL);
 
 --
 -- Indexes for dumped tables
@@ -272,13 +316,13 @@ ALTER TABLE `breakdown`
 -- AUTO_INCREMENT for table `category`
 --
 ALTER TABLE `category`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `equipment`
 --
 ALTER TABLE `equipment`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `equipment_condition_history`
@@ -290,7 +334,7 @@ ALTER TABLE `equipment_condition_history`
 -- AUTO_INCREMENT for table `equipment_location`
 --
 ALTER TABLE `equipment_location`
-  MODIFY `location_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `location_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `maintenance`
@@ -314,13 +358,13 @@ ALTER TABLE `notification`
 -- AUTO_INCREMENT for table `role`
 --
 ALTER TABLE `role`
-  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

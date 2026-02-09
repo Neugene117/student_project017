@@ -28,6 +28,18 @@ $equipment_list = [];
 $categories = [];
 $locations = [];
 
+// Check for success message in session (from redirect)
+if (isset($_SESSION['success_message'])) {
+    $success_message = $_SESSION['success_message'];
+    unset($_SESSION['success_message']); // Clear after displaying
+}
+
+// Check for error message in session (from redirect)
+if (isset($_SESSION['error_message'])) {
+    $error_message = $_SESSION['error_message'];
+    unset($_SESSION['error_message']); // Clear after displaying
+}
+
 // Fetch categories
 $category_query = "SELECT category_id, category_name FROM category ORDER BY category_name ASC";
 $category_result = mysqli_query($conn, $category_query);
@@ -101,53 +113,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         
         // Validate required fields
         if (empty($equipment_name)) {
-            $error_message = "Equipment name is required.";
+            $_SESSION['error_message'] = "Equipment name is required.";
+            header("Location: equipment.php");
+            exit();
         } elseif ($category_id <= 0) {
-            $error_message = "Please select a valid category.";
+            $_SESSION['error_message'] = "Please select a valid category.";
+            header("Location: equipment.php");
+            exit();
         } elseif ($equipment_location_id <= 0) {
-            $error_message = "Please select a valid location.";
-        } elseif (empty($error_message)) {
-            // Insert into database
-            $insert_query = "INSERT INTO equipment (equipment_name, equipment_image, category_id, serial_number, 
-                            equipment_location_id, purchase_date, starting_date, expired_date, statuss, user_id, 
-                            created_at, updated_at) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
-            
-            $stmt = mysqli_prepare($conn, $insert_query);
-            if ($stmt) {
-                mysqli_stmt_bind_param(
-                    $stmt,
-                    "ssisssdssi",
-                    $equipment_name,
-                    $equipment_image,
-                    $category_id,
-                    $serial_number,
-                    $equipment_location_id,
-                    $purchase_date,
-                    $starting_date,
-                    $expired_date,
-                    $statuss,
-                    $user_id
-                );
+            $_SESSION['error_message'] = "Please select a valid location.";
+            header("Location: equipment.php");
+            exit();
+        } elseif (!empty($serial_number)) {
+            // Check for duplicate serial number only if serial number is provided
+            $duplicate_check_query = "SELECT id FROM equipment WHERE serial_number = ?";
+            $stmt_check = mysqli_prepare($conn, $duplicate_check_query);
+            if ($stmt_check) {
+                mysqli_stmt_bind_param($stmt_check, "s", $serial_number);
+                mysqli_stmt_execute($stmt_check);
+                $result_check = mysqli_stmt_get_result($stmt_check);
                 
-                if (mysqli_stmt_execute($stmt)) {
-                    $success_message = "Equipment added successfully!";
-                    // Reset form
-                    $equipment_name = '';
-                    $category_id = '';
-                    $serial_number = '';
-                    $equipment_location_id = '';
-                    $purchase_date = '';
-                    $starting_date = '';
-                    $expired_date = '';
-                    $statuss = 'Active';
-                } else {
-                    $error_message = "Error adding equipment: " . mysqli_error($conn);
+                if (mysqli_num_rows($result_check) > 0) {
+                    $_SESSION['error_message'] = "An equipment with this serial number already exists. Serial numbers must be unique.";
+                    header("Location: equipment.php");
+                    exit();
                 }
-                mysqli_stmt_close($stmt);
-            } else {
-                $error_message = "Database error: " . mysqli_error($conn);
+                mysqli_stmt_close($stmt_check);
             }
+        }
+        
+        // If we reach here, all validations have passed
+        // Insert into database
+        $insert_query = "INSERT INTO equipment (equipment_name, equipment_image, category_id, serial_number, 
+                        equipment_location_id, purchase_date, starting_date, expired_date, statuss, user_id, 
+                        created_at, updated_at) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        
+        $stmt = mysqli_prepare($conn, $insert_query);
+        if ($stmt) {
+            mysqli_stmt_bind_param(
+                $stmt,
+                "ssisssdssi",
+                $equipment_name,
+                $equipment_image,
+                $category_id,
+                $serial_number,
+                $equipment_location_id,
+                $purchase_date,
+                $starting_date,
+                $expired_date,
+                $statuss,
+                $user_id
+            );
+            
+            if (mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
+                // Store success message in session and redirect to prevent duplicate submissions on refresh
+                $_SESSION['success_message'] = "Equipment added successfully!";
+                header("Location: equipment.php");
+                exit();
+            } else {
+                $_SESSION['error_message'] = "Error adding equipment: " . mysqli_error($conn);
+                header("Location: equipment.php");
+                exit();
+            }
+        } else {
+            $_SESSION['error_message'] = "Database error: " . mysqli_error($conn);
+            header("Location: equipment.php");
+            exit();
         }
     }
 }
@@ -185,7 +218,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($stmt) {
                 mysqli_stmt_bind_param($stmt, "i", $equipment_id);
                 if (mysqli_stmt_execute($stmt)) {
-                    $success_message = "Equipment deleted successfully!";
+                    mysqli_stmt_close($stmt);
+                    // Store success message in session and redirect to prevent duplicate submissions on refresh
+                    $_SESSION['success_message'] = "Equipment deleted successfully!";
+                    header("Location: equipment.php");
+                    exit();
                 } else {
                     $error_message = "Error deleting equipment: " . mysqli_error($conn);
                 }
@@ -468,21 +505,13 @@ if (empty($_SESSION['csrf_token'])) {
 
         .warranty-fields {
             grid-column: 1 / -1;
-        }
-
-        .warranty-fields .form-group {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 24px;
         }
 
-        .warranty-fields .form-group:first-child,
-        .warranty-fields .form-group:last-child {
-            grid-column: 1;
-        }
-
-        .warranty-fields .form-group:nth-child(2) {
-            grid-column: 2;
+        .warranty-fields .form-group {
+            margin-bottom: 0;
         }
 
         .equipment-table {
@@ -734,8 +763,8 @@ if (empty($_SESSION['csrf_token'])) {
                 grid-column: 1;
             }
 
-            .warranty-fields .form-group {
-                grid-template-columns: 1fr;
+            .warranty-fields {
+                grid-template-columns: 1fr 1fr;
                 gap: 16px;
             }
         }
@@ -756,6 +785,11 @@ if (empty($_SESSION['csrf_token'])) {
             }
 
             #equipmentForm {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .warranty-fields {
                 grid-template-columns: 1fr;
                 gap: 16px;
             }
