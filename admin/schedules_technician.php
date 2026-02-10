@@ -14,17 +14,23 @@ $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 $is_technician = ($user_role === 'technician');
 
 // If user is not technician, redirect them
-if (!$is_technician) {
-    header("Location: ./dashboard.php?error=" . urlencode("You do not have permission to access this page"));
-    exit();
-}
-
-// Include database connection
-include('../config/db.php');
+    if (!$is_technician) {
+        header("Location: ./dashboard.php?error=" . urlencode("You do not have permission to access this page"));
+        exit();
+    }
+    
+    // Set default timezone for the script
+    date_default_timezone_set('Africa/Kigali');
+    
+    // Include database connection
+    include('../config/db.php');
 require_once('../lib/mailer.php');
 
 // Function to calculate next maintenance date
-function getNextMaintenanceDate($start_date_str, $interval_value, $interval_unit) {
+function getNextMaintenanceDate($start_date_str, $interval_value, $interval_unit, $last_maintenance_date_str = null) {
+    // Set timezone to match your database or location
+    date_default_timezone_set('Africa/Kigali'); // Adjust this to your timezone (e.g., Africa/Kigali)
+    
     $start_date = new DateTime($start_date_str);
     $current_time = new DateTime('now');
     $interval_unit = strtoupper(trim($interval_unit));
@@ -43,48 +49,32 @@ function getNextMaintenanceDate($start_date_str, $interval_value, $interval_unit
     
     $start_ts = $start_date->getTimestamp();
     $now_ts = $current_time->getTimestamp();
-    $interval_passed = $now_ts - $start_ts;
     
-    if ($interval_passed < 0) {
-        // Schedule hasn't started yet
-        return [
-            'next_date' => $start_date,
-            'is_due' => false,
-            'seconds_until_due' => abs($interval_passed)
-        ];
+    // Determine the baseline for the next due date
+    if ($last_maintenance_date_str) {
+        // If maintenance was performed, the next due date is relative to that
+        $last_maintenance = new DateTime($last_maintenance_date_str);
+        $next_maintenance_ts = $last_maintenance->getTimestamp() + $total_seconds;
+    } else {
+        // If no maintenance ever performed
+        if ($now_ts < $start_ts) {
+            // If start date is in the future, that is the first due date
+            $next_maintenance_ts = $start_ts;
+        } else {
+            // If start date is past and no maintenance done, it is due immediately (or remains due)
+            // We set it to start_date so it appears overdue
+            $next_maintenance_ts = $start_ts;
+        }
     }
     
-    // Calculate how many complete intervals have passed
-    $completed_intervals = floor($interval_passed / $total_seconds);
-    
-    // The start of the CURRENT interval (which just started)
-    $current_interval_start = $start_ts + ($completed_intervals * $total_seconds);
-    
-    // Time passed since the current interval started
-    $time_since_start = $now_ts - $current_interval_start;
-    
-    // Check if we are in the "Due Window" (first 5 minutes of new interval)
-    // This allows "Due Now" to persist for a while after the countdown hits 0
-    $is_due_window = ($time_since_start >= 0 && $time_since_start < 300); // 5 minutes
-    
-    // Calculate next maintenance target (start of NEXT interval)
-    $next_maintenance_ts = $start_ts + (($completed_intervals + 1) * $total_seconds);
     $next_maintenance = new DateTime();
     $next_maintenance->setTimestamp($next_maintenance_ts);
     
     $seconds_until_due = $next_maintenance_ts - $now_ts;
     
-    if ($is_due_window) {
-        return [
-            'next_date' => $current_time, // Logically "now"
-            'is_due' => true,
-            'seconds_until_due' => 0
-        ];
-    }
-    
     return [
         'next_date' => $next_maintenance,
-        'is_due' => false,
+        'is_due' => ($seconds_until_due <= 0),
         'seconds_until_due' => max(0, $seconds_until_due)
     ];
 }
@@ -128,40 +118,20 @@ if (isset($_POST['trigger_due_alert']) && isset($_POST['schedule_id'])) {
         $eq_result = $eq_stmt->get_result();
         $equipment_name = ($eq_row = $eq_result->fetch_assoc()) ? $eq_row['equipment_name'] : "Equipment #".$row['equipment_id'];
         
-        // Check boundary crossing (was due recently)
-        // We check if a boundary was crossed in the last minute
-        $interval_seconds = [
-            'SECOND' => 1,
-            'MINUTE' => 60,
-            'HOUR' => 3600,
-            'DAY' => 86400,
-            'MONTH' => 2592000,
-            'YEAR' => 31536000
-        ];
-        $interval_unit = strtoupper(trim($row['interval_unit']));
-        $total_sec = $row['interval_value'] * ($interval_seconds[$interval_unit] ?? 86400);
+        // Fetch last maintenance date
+        $last_maint_sql = "SELECT MAX(completed_date) as last_date FROM maintenance WHERE maintenance_schedule_id = ?";
+        $lm_stmt = $conn->prepare($last_maint_sql);
+        $lm_stmt->bind_param("i", $schedule_id);
+        $lm_stmt->execute();
+        $lm_res = $lm_stmt->get_result();
+        $last_maintenance_date = ($lm_row = $lm_res->fetch_assoc()) ? $lm_row['last_date'] : null;
+        $lm_stmt->close();
         
-        $start_ts = strtotime($row['start_date']);
-        $now_ts = time();
-        $passed = $now_ts - $start_ts;
+        $maint_info = getNextMaintenanceDate($row['start_date'], $row['interval_value'], $row['interval_unit'], $last_maintenance_date);
         
-        // How many intervals passed?
-        $intervals_count = floor($passed / $total_sec);
-        
-        // The start of the CURRENT interval (which just started)
-        $current_interval_start = $start_ts + ($intervals_count * $total_sec);
-        
-        // If we are within 60 seconds of the start of this interval, we treat it as "Just became due"
-        // Also allow some leeway if the browser was closed?
-        // User said "keep page open".
-        // Let's use a 5-minute window to be safe.
-        $diff = $now_ts - $current_interval_start;
-        
-        if ($diff >= 0 && $diff < 300) { // 5 minutes window
-            // Check if we already notified for THIS interval
-            // Uniqueness key: schedule_id + intervals_count
-            // We can put this in the message or check timestamp
-            // Timestamp check: Did we send a notification since $current_interval_start?
+        if ($maint_info['is_due']) {
+            // It is due. Check if we already alerted since it became due.
+            $due_date_ts = $maint_info['next_date']->getTimestamp();
             
             $check_notif = "SELECT notification_id FROM notification 
                             WHERE user_id = ? 
@@ -171,7 +141,7 @@ if (isset($_POST['trigger_due_alert']) && isset($_POST['schedule_id'])) {
             
             $msg_pattern = "%" . $equipment_name . "%";
             $stmt_check = $conn->prepare($check_notif);
-            $stmt_check->bind_param("isi", $user_id, $msg_pattern, $current_interval_start);
+            $stmt_check->bind_param("isi", $user_id, $msg_pattern, $due_date_ts);
             $stmt_check->execute();
             if ($stmt_check->get_result()->num_rows == 0) {
                 // SEND ALERT
@@ -185,6 +155,8 @@ if (isset($_POST['trigger_due_alert']) && isset($_POST['schedule_id'])) {
                 $stmt_ins->execute();
                 
                 // 2. Email
+                $email_status = 'skipped';
+                $email_error = '';
                 if (!empty($technician_email)) {
                     $subject = "Maintenance Alert: " . $equipment_name;
                     $htmlBody = "
@@ -196,7 +168,7 @@ if (isset($_POST['trigger_due_alert']) && isset($_POST['schedule_id'])) {
                             <h2 style='margin: 0; color: #991b1b; font-size: 20px;'>Maintenance Due Alert</h2>
                         </div>
                         <p style='color: #334155; font-size: 16px; line-height: 1.5;'>Dear <strong>" . htmlspecialchars($technician_name) . "</strong>,</p>
-                        <p style='color: #334155; font-size: 16px; line-height: 1.5;'>The maintenance cycle for <strong>" . htmlspecialchars($equipment_name) . "</strong> has just finished counting down.</p>
+                        <p style='color: #334155; font-size: 16px; line-height: 1.5;'>The maintenance cycle for <strong>" . htmlspecialchars($equipment_name) . "</strong> has ended.</p>
                         
                         <div style='background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;'>
                             <table style='width: 100%; border-collapse: collapse;'>
@@ -219,15 +191,26 @@ if (isset($_POST['trigger_due_alert']) && isset($_POST['schedule_id'])) {
                         </div>
                     </div>";
                     
-                    send_app_mail($technician_email, $technician_name, $subject, $htmlBody);
+                    $mail_res = send_app_mail($technician_email, $technician_name, $subject, $htmlBody);
+                    if ($mail_res['success']) {
+                        $email_status = 'sent';
+                    } else {
+                        $email_status = 'failed';
+                        $email_error = $mail_res['error'];
+                    }
                 }
                 
-                echo json_encode(['status' => 'success', 'message' => 'Alert sent']);
+                echo json_encode([
+                    'status' => 'success', 
+                    'message' => 'Alert sent', 
+                    'email_status' => $email_status, 
+                    'email_error' => $email_error
+                ]);
             } else {
                 echo json_encode(['status' => 'ignored', 'message' => 'Already alerted']);
             }
         } else {
-             echo json_encode(['status' => 'ignored', 'message' => 'Not in due window (Diff: '.$diff.'s)']);
+             echo json_encode(['status' => 'ignored', 'message' => 'Not due yet']);
         }
     } else {
         echo json_encode(['status' => 'error', 'message' => 'Schedule not found']);
@@ -236,7 +219,7 @@ if (isset($_POST['trigger_due_alert']) && isset($_POST['schedule_id'])) {
 }
 
 // Configuration
-$admin_email = 'nendayishimiye@gmail.com';
+$admin_email = 'fabrdaa@gmail.com';
 $admin_name = 'Admin';
 
 // Handle Maintenance Submission
@@ -246,7 +229,11 @@ if (isset($_POST['submit_maintenance'])) {
     $description = trim($_POST['description']);
     $cost = floatval($_POST['cost']);
     $status = 'Completed'; // Default status for technician submission
+    
+    // Set Timezone
+    date_default_timezone_set('Africa/Kigali'); 
     $completed_date = date('Y-m-d H:i:s');
+    
     $maintenance_type = $_POST['maintenance_type'];
 
     $insert_sql = "INSERT INTO maintenance (equipment_id, user_id, maintenance_type, maintenance_schedule_id, completed_date, description, cost, statuss) 
@@ -469,7 +456,8 @@ $sql = "SELECT
             ms.created_at,
             ms.updated_at,
             e.equipment_name,
-            e.equipment_image
+            e.equipment_image,
+            (SELECT MAX(completed_date) FROM maintenance WHERE maintenance_schedule_id = ms.schedule_id) as last_maintenance_date
         FROM maintenance_schedule ms
         LEFT JOIN equipment e ON ms.equipment_id = e.id
         WHERE ms.assigned_to_user_id = ?
@@ -757,34 +745,12 @@ $stmt->close();
                                 $maintenance_info = getNextMaintenanceDate(
                                     $schedule['start_date'],
                                     $schedule['interval_value'],
-                                    $schedule['interval_unit']
+                                    $schedule['interval_unit'],
+                                    $schedule['last_maintenance_date'] ?? null
                                 );
                                 $is_due = $maintenance_info['is_due'];
                                 $next_date = $maintenance_info['next_date'];
                                 $seconds_until = $maintenance_info['seconds_until_due'];
-                                
-                                // Check if maintenance is done for the current month (for monthly schedules)
-                                $is_completed_this_month = false;
-                                if ($schedule['interval_unit'] == 'MONTH') {
-                                    $current_month = date('m');
-                                    $current_year = date('Y');
-                                    $check_sql = "SELECT mid FROM maintenance 
-                                                  WHERE equipment_id = ? 
-                                                  AND maintenance_schedule_id = ? 
-                                                  AND MONTH(completed_date) = ? 
-                                                  AND YEAR(completed_date) = ?
-                                                  AND statuss IN ('Completed', 'Done', 'Finished')";
-                                    $check_stmt = $conn->prepare($check_sql);
-                                    if ($check_stmt) {
-                                        $check_stmt->bind_param("iiii", $schedule['equipment_id'], $schedule['schedule_id'], $current_month, $current_year);
-                                        $check_stmt->execute();
-                                        $check_stmt->store_result();
-                                        if ($check_stmt->num_rows > 0) {
-                                            $is_completed_this_month = true;
-                                        }
-                                        $check_stmt->close();
-                                    }
-                                }
                             ?>
                                 <tr>
                                     <td class="schedule-id">#<?php echo $counter; ?></td>
@@ -809,38 +775,25 @@ $stmt->close();
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if ($is_completed_this_month): ?>
-                                            <span class="status-badge" style="background: #d1fae5; color: #065f46;">
-                                                <i class="fas fa-check-circle"></i>
-                                                <span>Completed</span>
-                                            </span>
-                                        <?php else: ?>
-                                            <span class="status-badge <?php echo $is_due ? 'due' : 'pending'; ?>" data-schedule-id="<?php echo $schedule['schedule_id']; ?>" data-seconds="<?php echo $seconds_until; ?>">
-                                                <i class="fas <?php echo $is_due ? 'fa-exclamation-circle' : 'fa-clock'; ?>"></i>
-                                                <?php if ($is_due): ?>
-                                                    <span>Due Now</span>
-                                                <?php else: ?>
-                                                    <span class="countdown-text">Due in <span class="countdown-value">--:--:--</span></span>
-                                                <?php endif; ?>
-                                            </span>
-                                        <?php endif; ?>
+                                        <span class="status-badge <?php echo $is_due ? 'due' : 'pending'; ?>" data-schedule-id="<?php echo $schedule['schedule_id']; ?>" data-seconds="<?php echo $seconds_until; ?>">
+                                            <i class="fas <?php echo $is_due ? 'fa-exclamation-circle' : 'fa-clock'; ?>"></i>
+                                            <?php if ($is_due): ?>
+                                                <span>Due Now</span>
+                                            <?php else: ?>
+                                                <span class="countdown-text">Due in <span class="countdown-value">--:--:--</span></span>
+                                            <?php endif; ?>
+                                        </span>
                                     </td>
                                     <td>
                                         <div style="display: flex; gap: 8px;">
-                                            <?php if (!$is_completed_this_month): ?>
-                                                <button type="button" class="btn-action <?php echo !$is_due ? 'hidden' : ''; ?>" 
-                                                    data-schedule-id="<?php echo $schedule['schedule_id']; ?>" 
-                                                    data-equipment-id="<?php echo $schedule['equipment_id']; ?>"
-                                                    data-maintenance-type="<?php echo htmlspecialchars($schedule['maintenance_type']); ?>"
-                                                    data-equipment-name="<?php echo htmlspecialchars($schedule['equipment_name']); ?>"
-                                                    title="Fill this maintenance schedule">
-                                                    <i class="fas fa-check"></i> Fill
-                                                </button>
-                                            <?php else: ?>
-                                                <button type="button" class="btn-action disabled" disabled title="Maintenance already completed for this month">
-                                                    <i class="fas fa-check"></i> Done
-                                                </button>
-                                            <?php endif; ?>
+                                            <button type="button" class="btn-action <?php echo !$is_due ? 'hidden' : ''; ?>" 
+                                                data-schedule-id="<?php echo $schedule['schedule_id']; ?>" 
+                                                data-equipment-id="<?php echo $schedule['equipment_id']; ?>"
+                                                data-maintenance-type="<?php echo htmlspecialchars($schedule['maintenance_type']); ?>"
+                                                data-equipment-name="<?php echo htmlspecialchars($schedule['equipment_name']); ?>"
+                                                title="Fill this maintenance schedule">
+                                                <i class="fas fa-check"></i> Fill
+                                            </button>
 
                                             <button type="button" class="btn-action btn-breakdown" 
                                                 style="background: #ef4444;"
@@ -982,7 +935,8 @@ $stmt->close();
                 $maintenance_info = getNextMaintenanceDate(
                     $schedule['start_date'],
                     $schedule['interval_value'],
-                    $schedule['interval_unit']
+                    $schedule['interval_unit'],
+                    $schedule['last_maintenance_date'] ?? null
                 );
             ?>
             {
@@ -1066,7 +1020,10 @@ $stmt->close();
                                 console.log('Maintenance alert status:', data.message);
                             }
                         })
-                        .catch(err => console.error('Error sending maintenance alert:', err));
+                        .catch(err => {
+                            console.error('Error sending maintenance alert:', err);
+                            alertedSchedules.delete(schedule.id);
+                        });
                     }
                 } else {
                     // Schedule is pending

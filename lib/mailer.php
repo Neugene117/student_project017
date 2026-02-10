@@ -63,7 +63,7 @@ function send_app_mail(string $toEmail, string $toName, string $subject, string 
         // Embed Company Logo
         $logoPath = __DIR__ . '/../static/images/logo.JPG';
         if (file_exists($logoPath)) {
-            $mail->addEmbeddedImage($logoPath, 'company_logo', 'logo.JPG');
+            $mail->addEmbeddedImage($logoPath, 'company_logo', 'logo.JPG', 'base64', 'image/jpeg');
         }
 
         $mail->Subject = $subject;

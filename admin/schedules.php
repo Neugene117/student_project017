@@ -228,25 +228,59 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
         $error_message = "Security token validation failed. Please try again.";
     } else {
         $schedule_id = intval($_POST['schedule_id']);
-        $equipment_id = intval($_POST['equipment_id']);
+        $equipment_ids = isset($_POST['equipment_id']) ? $_POST['equipment_id'] : [];
+        if (!is_array($equipment_ids)) {
+            $equipment_ids = [$equipment_ids];
+        }
         $maintenance_type = trim($_POST['maintenance_type']);
         $interval_value = intval($_POST['interval_value']);
         $interval_unit = trim($_POST['interval_unit']);
         $start_date = trim($_POST['start_date']);
         $assigned_to_user_id = intval($_POST['assigned_to_user_id']);
         
-        if (!empty($equipment_id) && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
+        if (!empty($equipment_ids) && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
             // Validate interval_unit
             $valid_units = ['SECOND', 'MINUTE', 'DAY', 'MONTH', 'YEAR'];
             if (!in_array($interval_unit, $valid_units)) {
                 $error_message = "Invalid interval unit selected.";
             } else {
+                // Update the existing schedule with the FIRST selected equipment
+                $first_eq_id = intval(array_shift($equipment_ids));
+                
                 $sql = "UPDATE maintenance_schedule SET equipment_id = ?, maintenance_type = ?, interval_value = ?, interval_unit = ?, start_date = ?, assigned_to_user_id = ? WHERE schedule_id = ?";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("isissii", $equipment_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id, $schedule_id);
+                $stmt->bind_param("isissii", $first_eq_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id, $schedule_id);
                 
                 if ($stmt->execute()) {
                     $stmt->close();
+                    
+                    // If there are MORE equipment selected, INSERT new schedules for them
+                    if (!empty($equipment_ids)) {
+                        $insert_sql = "INSERT INTO maintenance_schedule (equipment_id, maintenance_type, interval_value, interval_unit, start_date, assigned_to_user_id) 
+                                       VALUES (?, ?, ?, ?, ?, ?)";
+                        $insert_stmt = $conn->prepare($insert_sql);
+                        
+                        foreach ($equipment_ids as $next_eq_id) {
+                            $next_eq_id = intval($next_eq_id);
+                            if ($next_eq_id <= 0) continue;
+                            
+                            $insert_stmt->bind_param("isissi", $next_eq_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id);
+                            $insert_stmt->execute();
+                            
+                            // Send notification for new assignments (simplified, reusing logic could be better but this is quick)
+                            $notif_msg = "New maintenance schedule assigned (via edit)";
+                            $notif_type = "schedule";
+                            $notif_sql = "INSERT INTO notification (user_id, message, type, is_read) VALUES (?, ?, ?, 0)";
+                            $notif_stmt_ins = $conn->prepare($notif_sql);
+                            if ($notif_stmt_ins) {
+                                $notif_stmt_ins->bind_param("iss", $assigned_to_user_id, $notif_msg, $notif_type);
+                                $notif_stmt_ins->execute();
+                                $notif_stmt_ins->close();
+                            }
+                        }
+                        $insert_stmt->close();
+                    }
+
                     // Regenerate token after successful submission
                     $_SESSION['schedule_token'] = bin2hex(random_bytes(32));
                     // Redirect to prevent duplicate submission on refresh
@@ -255,7 +289,6 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
                 } else {
                     $error_message = "Error updating schedule: " . $conn->error;
                 }
-                $stmt->close();
             }
         } else {
             $error_message = "All fields are required!";
@@ -1059,15 +1092,17 @@ if ($result && $result->num_rows > 0) {
 
                     <form method="POST" action="" class="modal-form" id="editScheduleForm">
                         <div class="form-group">
-                            <label for="edit_equipment_id">Equipment *</label>
-                            <select id="edit_equipment_id" name="equipment_id" required>
-                                <option value="">-- Select Equipment --</option>
+                            <label for="edit_equipment_id">Equipment (Hold Ctrl/Cmd to select multiple) *</label>
+                            <select id="edit_equipment_id" name="equipment_id[]" multiple required style="height: 120px;">
                                 <?php foreach ($equipment_list as $eq): ?>
                                     <option value="<?php echo $eq['id']; ?>">
                                         <?php echo htmlspecialchars($eq['equipment_name']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <p style="font-size: 12px; color: var(--gray-500); margin-top: 5px;">
+                                <i class="fas fa-info-circle"></i> Selecting multiple will create new schedules for the additional equipment.
+                            </p>
                         </div>
 
                         <div class="form-group">
@@ -1285,7 +1320,16 @@ if ($result && $result->num_rows > 0) {
         // Open edit modal
         function openEditModal(scheduleId, equipmentId, maintenanceType, intervalValue, intervalUnit, startDate, assignedToUserId) {
             document.getElementById('edit_schedule_id').value = scheduleId;
-            document.getElementById('edit_equipment_id').value = equipmentId;
+            
+            // Handle multi-select population
+            const eqSelect = document.getElementById('edit_equipment_id');
+            for (let i = 0; i < eqSelect.options.length; i++) {
+                eqSelect.options[i].selected = false;
+                if (eqSelect.options[i].value == equipmentId) {
+                    eqSelect.options[i].selected = true;
+                }
+            }
+            
             document.getElementById('edit_maintenance_type').value = maintenanceType;
             document.getElementById('edit_interval_value').value = intervalValue;
             document.getElementById('edit_interval_unit').value = intervalUnit;
