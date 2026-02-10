@@ -56,26 +56,19 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['schedule_token']) {
         $error_message = "Security token validation failed. Please try again.";
     } else {
-        $equipment_ids = isset($_POST['equipment_id']) ? $_POST['equipment_id'] : [];
-        if (!is_array($equipment_ids)) {
-            $equipment_ids = [$equipment_ids];
-        }
+        $equipment_id = isset($_POST['equipment_id']) ? intval($_POST['equipment_id']) : 0;
         $maintenance_type = trim($_POST['maintenance_type']);
         $interval_value = intval($_POST['interval_value']);
         $interval_unit = trim($_POST['interval_unit']);
         $start_date = trim($_POST['start_date']);
         $assigned_to_user_id = intval($_POST['assigned_to_user_id']);
         
-        if (!empty($equipment_ids) && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
+        if ($equipment_id > 0 && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
             // Validate interval_unit
             $valid_units = ['SECOND', 'MINUTE', 'DAY', 'MONTH', 'YEAR'];
             if (!in_array($interval_unit, $valid_units)) {
                 $error_message = "Invalid interval unit selected.";
             } else {
-                $inserted_count = 0;
-                $assigned_equipment_names = [];
-                $error_occurred = false;
-
                 // Fetch Technician Details once
                 $tech_email = '';
                 $tech_name = '';
@@ -95,54 +88,45 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
                 $sql = "INSERT INTO maintenance_schedule (equipment_id, maintenance_type, interval_value, interval_unit, start_date, assigned_to_user_id) 
                         VALUES (?, ?, ?, ?, ?, ?)";
                 $stmt = $conn->prepare($sql);
-
-                foreach ($equipment_ids as $eq_id) {
-                    $eq_id = intval($eq_id);
-                    if ($eq_id <= 0) continue;
-
-                    $stmt->bind_param("isissi", $eq_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id);
+                $stmt->bind_param("isissi", $equipment_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id);
+                
+                if ($stmt->execute()) {
+                    $stmt->close();
                     
-                    if ($stmt->execute()) {
-                        $inserted_count++;
-                        
-                        // Fetch Equipment Name
-                        $eq_name_sql = "SELECT equipment_name FROM equipment WHERE id = ?";
-                        $eq_name_stmt = $conn->prepare($eq_name_sql);
-                        if ($eq_name_stmt) {
-                            $eq_name_stmt->bind_param("i", $eq_id);
-                            $eq_name_stmt->execute();
-                            $eq_name_result = $eq_name_stmt->get_result();
-                            if ($eq_row = $eq_name_result->fetch_assoc()) {
-                                $assigned_equipment_names[] = $eq_row['equipment_name'];
-                                
-                                // Notification for each equipment (or we could batch, but separate notifications are fine for history)
-                                $notif_msg = "New maintenance schedule assigned for " . $eq_row['equipment_name'];
-                                $notif_type = "schedule";
-                                $notif_sql = "INSERT INTO notification (user_id, message, type, is_read) VALUES (?, ?, ?, 0)";
-                                $notif_stmt = $conn->prepare($notif_sql);
-                                if ($notif_stmt) {
-                                    $notif_stmt->bind_param("iss", $assigned_to_user_id, $notif_msg, $notif_type);
-                                    $notif_stmt->execute();
-                                    $notif_stmt->close();
-                                }
-                            }
-                            $eq_name_stmt->close();
+                    // Fetch Equipment Name
+                    $equipment_name = '';
+                    $eq_name_sql = "SELECT equipment_name FROM equipment WHERE id = ?";
+                    $eq_name_stmt = $conn->prepare($eq_name_sql);
+                    if ($eq_name_stmt) {
+                        $eq_name_stmt->bind_param("i", $equipment_id);
+                        $eq_name_stmt->execute();
+                        $eq_name_result = $eq_name_stmt->get_result();
+                        if ($eq_row = $eq_name_result->fetch_assoc()) {
+                            $equipment_name = $eq_row['equipment_name'];
                         }
-                    } else {
-                        $error_occurred = true;
-                        $error_message = "Error adding schedule for equipment ID $eq_id: " . $conn->error;
+                        $eq_name_stmt->close();
                     }
-                }
-                $stmt->close();
 
-                if ($inserted_count > 0) {
+                    // Notification
+                    if (!empty($equipment_name)) {
+                        $notif_msg = "New maintenance schedule assigned for " . $equipment_name;
+                        $notif_type = "schedule";
+                        $notif_sql = "INSERT INTO notification (user_id, message, type, is_read) VALUES (?, ?, ?, 0)";
+                        $notif_stmt = $conn->prepare($notif_sql);
+                        if ($notif_stmt) {
+                            $notif_stmt->bind_param("iss", $assigned_to_user_id, $notif_msg, $notif_type);
+                            $notif_stmt->execute();
+                            $notif_stmt->close();
+                        }
+                    }
+
                     // Send One Email with List
                     if (!empty($tech_email)) {
                         $subject = 'New Maintenance Schedules Assigned - Action Required';
                         
                         $equipment_list_html = "";
-                        foreach ($assigned_equipment_names as $name) {
-                            $equipment_list_html .= "<li style='margin-bottom: 5px; color: #1e293b;'><strong>" . htmlspecialchars($name) . "</strong></li>";
+                        if (!empty($equipment_name)) {
+                            $equipment_list_html .= "<li style='margin-bottom: 5px; color: #1e293b;'><strong>" . htmlspecialchars($equipment_name) . "</strong></li>";
                         }
 
                         $htmlBody = "
@@ -192,9 +176,8 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
                     header("Location: " . $_SERVER['PHP_SELF'] . "?success=1" . (isset($mailResult) && !$mailResult['success'] ? "&warning=" . urlencode($mailResult['error']) : ""));
                     exit();
                 } else {
-                    if (!$error_occurred) {
-                        $error_message = "No equipment selected or invalid IDs.";
-                    }
+                    $error_message = "Error adding schedule: " . $conn->error;
+                    $stmt->close();
                 }
             }
         } else {
@@ -228,58 +211,25 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
         $error_message = "Security token validation failed. Please try again.";
     } else {
         $schedule_id = intval($_POST['schedule_id']);
-        $equipment_ids = isset($_POST['equipment_id']) ? $_POST['equipment_id'] : [];
-        if (!is_array($equipment_ids)) {
-            $equipment_ids = [$equipment_ids];
-        }
+        $equipment_id = isset($_POST['equipment_id']) ? intval($_POST['equipment_id']) : 0;
         $maintenance_type = trim($_POST['maintenance_type']);
         $interval_value = intval($_POST['interval_value']);
         $interval_unit = trim($_POST['interval_unit']);
         $start_date = trim($_POST['start_date']);
         $assigned_to_user_id = intval($_POST['assigned_to_user_id']);
         
-        if (!empty($equipment_ids) && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
+        if ($equipment_id > 0 && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
             // Validate interval_unit
             $valid_units = ['SECOND', 'MINUTE', 'DAY', 'MONTH', 'YEAR'];
             if (!in_array($interval_unit, $valid_units)) {
                 $error_message = "Invalid interval unit selected.";
             } else {
-                // Update the existing schedule with the FIRST selected equipment
-                $first_eq_id = intval(array_shift($equipment_ids));
-                
                 $sql = "UPDATE maintenance_schedule SET equipment_id = ?, maintenance_type = ?, interval_value = ?, interval_unit = ?, start_date = ?, assigned_to_user_id = ? WHERE schedule_id = ?";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("isissii", $first_eq_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id, $schedule_id);
+                $stmt->bind_param("isissii", $equipment_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id, $schedule_id);
                 
                 if ($stmt->execute()) {
                     $stmt->close();
-                    
-                    // If there are MORE equipment selected, INSERT new schedules for them
-                    if (!empty($equipment_ids)) {
-                        $insert_sql = "INSERT INTO maintenance_schedule (equipment_id, maintenance_type, interval_value, interval_unit, start_date, assigned_to_user_id) 
-                                       VALUES (?, ?, ?, ?, ?, ?)";
-                        $insert_stmt = $conn->prepare($insert_sql);
-                        
-                        foreach ($equipment_ids as $next_eq_id) {
-                            $next_eq_id = intval($next_eq_id);
-                            if ($next_eq_id <= 0) continue;
-                            
-                            $insert_stmt->bind_param("isissi", $next_eq_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id);
-                            $insert_stmt->execute();
-                            
-                            // Send notification for new assignments (simplified, reusing logic could be better but this is quick)
-                            $notif_msg = "New maintenance schedule assigned (via edit)";
-                            $notif_type = "schedule";
-                            $notif_sql = "INSERT INTO notification (user_id, message, type, is_read) VALUES (?, ?, ?, 0)";
-                            $notif_stmt_ins = $conn->prepare($notif_sql);
-                            if ($notif_stmt_ins) {
-                                $notif_stmt_ins->bind_param("iss", $assigned_to_user_id, $notif_msg, $notif_type);
-                                $notif_stmt_ins->execute();
-                                $notif_stmt_ins->close();
-                            }
-                        }
-                        $insert_stmt->close();
-                    }
 
                     // Regenerate token after successful submission
                     $_SESSION['schedule_token'] = bin2hex(random_bytes(32));
@@ -395,6 +345,11 @@ if ($result && $result->num_rows > 0) {
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
 
+        #modal_equipment_search,
+        #edit_equipment_search {
+            margin-bottom: 8px;
+        }
+
         .btn-primary {
             background: var(--primary-blue);
             color: white;
@@ -409,6 +364,102 @@ if ($result && $result->num_rows > 0) {
         .btn-primary:hover {
             background: #1d4ed8;
             transform: translateY(-2px);
+        }
+
+        .table-search {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .table-search input {
+            width: 280px;
+            max-width: 100%;
+            padding: 10px 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: var(--transition);
+            font-family: inherit;
+        }
+
+        .table-search input:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .combo {
+            position: relative;
+            width: 100%;
+        }
+
+        .combo-toggle {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 8px;
+            background: #fff;
+            font-size: 14px;
+            text-align: left;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .combo-toggle:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .combo-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            z-index: 10;
+            display: none;
+        }
+
+        .combo-menu.active {
+            display: block;
+        }
+
+        .combo-search {
+            width: 100%;
+            padding: 10px 12px;
+            border: none;
+            border-bottom: 1px solid var(--gray-200);
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            font-size: 14px;
+        }
+
+        .combo-search:focus {
+            outline: none;
+        }
+
+        .combo-list {
+            max-height: 200px;
+            overflow: auto;
+            list-style: none;
+            padding: 6px 0;
+            margin: 0;
+        }
+
+        .combo-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .combo-option:hover,
+        .combo-option[aria-selected="true"] {
+            background: #eff6ff;
         }
 
         .btn-submit {
@@ -992,17 +1043,23 @@ if ($result && $result->num_rows > 0) {
 
                     <form method="POST" action="" class="modal-form" id="addScheduleForm">
                         <div class="form-group">
-                            <label for="modal_equipment_id">Equipment (Hold Ctrl/Cmd to select multiple) *</label>
-                            <select id="modal_equipment_id" name="equipment_id[]" multiple required style="height: 120px;">
-                                <?php foreach ($equipment_list as $eq): ?>
-                                    <option value="<?php echo $eq['id']; ?>">
-                                        <?php echo htmlspecialchars($eq['equipment_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <p style="font-size: 12px; color: var(--gray-500); margin-top: 5px;">
-                                <i class="fas fa-info-circle"></i> You can select multiple equipment for the same schedule.
-                            </p>
+                            <label for="modal_equipment_id">Equipment *</label>
+                            <div class="combo" id="modal_equipment_combo">
+                                <input type="hidden" name="equipment_id" id="modal_equipment_id" required>
+                                <button type="button" class="combo-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                    Select equipment
+                                </button>
+                                <div class="combo-menu" role="listbox">
+                                    <input type="text" class="combo-search" placeholder="Search equipment...">
+                                    <ul class="combo-list">
+                                        <?php foreach ($equipment_list as $eq): ?>
+                                            <li class="combo-option" data-value="<?php echo $eq['id']; ?>">
+                                                <?php echo htmlspecialchars($eq['equipment_name']); ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -1092,17 +1149,23 @@ if ($result && $result->num_rows > 0) {
 
                     <form method="POST" action="" class="modal-form" id="editScheduleForm">
                         <div class="form-group">
-                            <label for="edit_equipment_id">Equipment (Hold Ctrl/Cmd to select multiple) *</label>
-                            <select id="edit_equipment_id" name="equipment_id[]" multiple required style="height: 120px;">
-                                <?php foreach ($equipment_list as $eq): ?>
-                                    <option value="<?php echo $eq['id']; ?>">
-                                        <?php echo htmlspecialchars($eq['equipment_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <p style="font-size: 12px; color: var(--gray-500); margin-top: 5px;">
-                                <i class="fas fa-info-circle"></i> Selecting multiple will create new schedules for the additional equipment.
-                            </p>
+                            <label for="edit_equipment_id">Equipment *</label>
+                            <div class="combo" id="edit_equipment_combo">
+                                <input type="hidden" name="equipment_id" id="edit_equipment_id" required>
+                                <button type="button" class="combo-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                    Select equipment
+                                </button>
+                                <div class="combo-menu" role="listbox">
+                                    <input type="text" class="combo-search" placeholder="Search equipment...">
+                                    <ul class="combo-list">
+                                        <?php foreach ($equipment_list as $eq): ?>
+                                            <li class="combo-option" data-value="<?php echo $eq['id']; ?>">
+                                                <?php echo htmlspecialchars($eq['equipment_name']); ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -1181,6 +1244,9 @@ if ($result && $result->num_rows > 0) {
 
             <!-- Schedules Table -->
             <div class="schedules-table">
+                <div class="table-search">
+                    <input type="text" id="scheduleSearch" placeholder="Search schedules...">
+                </div>
                 <?php if (count($schedules) > 0): ?>
                     <table>
                         <thead>
@@ -1274,9 +1340,114 @@ if ($result && $result->num_rows > 0) {
                 }, 300);
             }, 5000);
         }
+
+        // Schedule search filter
+        const scheduleSearch = document.getElementById('scheduleSearch');
+        if (scheduleSearch) {
+            const table = document.querySelector('.schedules-table table');
+            if (table) {
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const noResultsRow = document.createElement('tr');
+                noResultsRow.className = 'no-results-row';
+                noResultsRow.innerHTML = "<td colspan=\"8\" style=\"text-align:center; color: var(--gray-500); padding: 16px;\">No matching schedules found.</td>";
+
+                scheduleSearch.addEventListener('input', function() {
+                    const query = this.value.toLowerCase().trim();
+                    let visibleCount = 0;
+
+                    rows.forEach(row => {
+                        const match = row.innerText.toLowerCase().includes(query);
+                        row.style.display = match ? '' : 'none';
+                        if (match) visibleCount++;
+                    });
+
+                    const existing = tbody.querySelector('.no-results-row');
+                    if (visibleCount === 0) {
+                        if (!existing) {
+                            tbody.appendChild(noResultsRow);
+                        }
+                    } else if (existing) {
+                        existing.remove();
+                    }
+                });
+            } else {
+                scheduleSearch.style.display = 'none';
+            }
+        }
     </script>
     <?php if ($is_admin): ?>
     <script>
+        function initCombo(comboId, hiddenId) {
+            const combo = document.getElementById(comboId);
+            if (!combo) return;
+            const hidden = document.getElementById(hiddenId);
+            const toggle = combo.querySelector('.combo-toggle');
+            const menu = combo.querySelector('.combo-menu');
+            const search = combo.querySelector('.combo-search');
+            const options = Array.from(combo.querySelectorAll('.combo-option'));
+
+            function setValue(value, text) {
+                hidden.value = value;
+                toggle.textContent = text;
+                options.forEach(opt => {
+                    opt.setAttribute('aria-selected', opt.dataset.value === String(value));
+                });
+            }
+
+            function openMenu() {
+                menu.classList.add('active');
+                toggle.setAttribute('aria-expanded', 'true');
+                search.value = '';
+                options.forEach(opt => (opt.style.display = 'block'));
+                search.focus();
+            }
+
+            function closeMenu() {
+                menu.classList.remove('active');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+
+            toggle.addEventListener('click', function() {
+                if (menu.classList.contains('active')) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
+            });
+
+            search.addEventListener('input', function() {
+                const q = this.value.toLowerCase().trim();
+                options.forEach(opt => {
+                    const match = opt.textContent.toLowerCase().includes(q);
+                    opt.style.display = match ? 'block' : 'none';
+                });
+            });
+
+            options.forEach(opt => {
+                opt.addEventListener('click', function() {
+                    setValue(this.dataset.value, this.textContent.trim());
+                    closeMenu();
+                });
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!combo.contains(e.target)) {
+                    closeMenu();
+                }
+            });
+
+            if (options.length > 0 && !hidden.value) {
+                const first = options[0];
+                setValue(first.dataset.value, first.textContent.trim());
+            }
+
+            return { setValue };
+        }
+
+        const modalCombo = initCombo('modal_equipment_combo', 'modal_equipment_id');
+        const editCombo = initCombo('edit_equipment_combo', 'edit_equipment_id');
+
         // Get modal elements
         const addScheduleModal = document.getElementById('addScheduleModal');
         const addScheduleBtn = document.getElementById('addScheduleBtn');
@@ -1320,14 +1491,13 @@ if ($result && $result->num_rows > 0) {
         // Open edit modal
         function openEditModal(scheduleId, equipmentId, maintenanceType, intervalValue, intervalUnit, startDate, assignedToUserId) {
             document.getElementById('edit_schedule_id').value = scheduleId;
-            
-            // Handle multi-select population
-            const eqSelect = document.getElementById('edit_equipment_id');
-            for (let i = 0; i < eqSelect.options.length; i++) {
-                eqSelect.options[i].selected = false;
-                if (eqSelect.options[i].value == equipmentId) {
-                    eqSelect.options[i].selected = true;
+            if (editCombo && typeof editCombo.setValue === 'function') {
+                const opt = document.querySelector('#edit_equipment_combo .combo-option[data-value="' + equipmentId + '"]');
+                if (opt) {
+                    editCombo.setValue(equipmentId, opt.textContent.trim());
                 }
+            } else {
+                document.getElementById('edit_equipment_id').value = equipmentId;
             }
             
             document.getElementById('edit_maintenance_type').value = maintenanceType;
