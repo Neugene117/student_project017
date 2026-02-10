@@ -40,13 +40,16 @@ if (isset($conn)) {
 
     <nav class="sidebar-nav">
         <ul class="nav-list">
-            <?php if ($role_id == 1 || $role_id == 3): // Admin & Owner ?>
+            <?php if ($role_id == 1 || $role_id == 2 || $role_id == 3): // All roles ?>
                 <li class="nav-item <?php echo $current_page == 'dashboard.php' ? 'active' : ''; ?>">
                     <a href="dashboard.php" class="nav-link">
                         <i class="fas fa-chart-line"></i>
                         <span class="nav-text">Dashboard</span>
                     </a>
                 </li>
+            <?php endif; ?>
+
+            <?php if ($role_id == 1 || $role_id == 3): // Admin & Owner ?>
                 <li class="nav-item <?php echo $current_page == 'equipment.php' ? 'active' : ''; ?>">
                     <a href="equipment.php" class="nav-link">
                         <i class="fas fa-laptop-medical"></i>
@@ -58,7 +61,7 @@ if (isset($conn)) {
 
             <?php if ($role_id == 1 || $role_id == 2 || $role_id == 3): // All roles ?>
                 <li class="nav-item <?php echo $current_page == 'maintenance.php' ? 'active' : ''; ?>">
-                    <a href="#" class="nav-link">
+                    <a href="maintenance.php" class="nav-link">
                         <i class="fas fa-wrench"></i>
                         <span class="nav-text">Maintenance</span>
                         <span class="badge warning"><?php echo $sidebar_maintenance_count; ?></span>
@@ -71,7 +74,7 @@ if (isset($conn)) {
                     </a>
                 </li>
                 <li class="nav-item <?php echo $current_page == 'breakdowns.php' ? 'active' : ''; ?>">
-                    <a href="#" class="nav-link">
+                    <a href="breakdowns.php" class="nav-link">
                         <i class="fas fa-exclamation-triangle"></i>
                         <span class="nav-text">Breakdowns</span>
                         <span class="badge danger"><?php echo $sidebar_breakdown_count; ?></span>
@@ -89,7 +92,7 @@ if (isset($conn)) {
 
             <?php endif; ?>
 
-            <?php if ($role_id == 1 || $role_id == 2 || $role_id == 3): // All roles ?>
+            <?php if ($role_id == 1 || $role_id == 3): // Admin & Owner ?>
                 <li class="nav-item <?php echo $current_page == 'equipment_location.php' ? 'active' : ''; ?>">
                     <a href="equipment_location.php" class="nav-link">
                         <i class="fas fa-map-marker-alt"></i>

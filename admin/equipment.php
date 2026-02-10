@@ -21,6 +21,28 @@ if ($user_role !== 'admin') {
     exit();
 }
 
+// Handle Get Equipment Details (AJAX)
+if (isset($_GET['action']) && $_GET['action'] === 'get_equipment_details' && isset($_GET['id'])) {
+    header('Content-Type: application/json');
+    $equipment_id = (int)$_GET['id'];
+    $query = "SELECT * FROM equipment WHERE id = ?";
+    $stmt = mysqli_prepare($conn, $query);
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, "i", $equipment_id);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        if ($data = mysqli_fetch_assoc($result)) {
+            echo json_encode(['status' => 'success', 'data' => $data]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Equipment not found']);
+        }
+        mysqli_stmt_close($stmt);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'Database error']);
+    }
+    exit();
+}
+
 // Initialize variables
 $success_message = '';
 $error_message = '';
@@ -185,6 +207,151 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Handle Update Equipment
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_equipment') {
+    // Validate CSRF token
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $error_message = "Invalid request. Please try again.";
+    } else {
+        $equipment_id = isset($_POST['equipment_id']) ? (int)$_POST['equipment_id'] : 0;
+        
+        if ($equipment_id <= 0) {
+            $_SESSION['error_message'] = "Invalid equipment ID.";
+            header("Location: equipment.php");
+            exit();
+        }
+
+        // Sanitize and validate input
+        $equipment_name = isset($_POST['equipment_name']) ? trim($_POST['equipment_name']) : '';
+        $category_id = isset($_POST['category_id']) ? (int)$_POST['category_id'] : 0;
+        $serial_number = isset($_POST['serial_number']) ? trim($_POST['serial_number']) : '';
+        $equipment_location_id = isset($_POST['equipment_location_id']) ? (int)$_POST['equipment_location_id'] : 0;
+        $purchase_date = isset($_POST['purchase_date']) ? $_POST['purchase_date'] : '';
+        $has_warranty = isset($_POST['has_warranty']) ? $_POST['has_warranty'] : 'no';
+        
+        // Handle warranty dates - set to NULL if no warranty
+        $starting_date = null;
+        $expired_date = null;
+        
+        if ($has_warranty === 'yes') {
+            $starting_date = isset($_POST['starting_date']) && !empty($_POST['starting_date']) ? $_POST['starting_date'] : null;
+            $expired_date = isset($_POST['expired_date']) && !empty($_POST['expired_date']) ? $_POST['expired_date'] : null;
+        }
+        
+        $statuss = isset($_POST['statuss']) ? trim($_POST['statuss']) : 'Active';
+        
+        // Validate required fields
+        if (empty($equipment_name)) {
+            $_SESSION['error_message'] = "Equipment name is required.";
+            header("Location: equipment.php");
+            exit();
+        } elseif ($category_id <= 0) {
+            $_SESSION['error_message'] = "Please select a valid category.";
+            header("Location: equipment.php");
+            exit();
+        } elseif ($equipment_location_id <= 0) {
+            $_SESSION['error_message'] = "Please select a valid location.";
+            header("Location: equipment.php");
+            exit();
+        } elseif (!empty($serial_number)) {
+            // Check for duplicate serial number (excluding current equipment)
+            $duplicate_check_query = "SELECT id FROM equipment WHERE serial_number = ? AND id != ?";
+            $stmt_check = mysqli_prepare($conn, $duplicate_check_query);
+            if ($stmt_check) {
+                mysqli_stmt_bind_param($stmt_check, "si", $serial_number, $equipment_id);
+                mysqli_stmt_execute($stmt_check);
+                $result_check = mysqli_stmt_get_result($stmt_check);
+                
+                if (mysqli_num_rows($result_check) > 0) {
+                    $_SESSION['error_message'] = "An equipment with this serial number already exists.";
+                    header("Location: equipment.php");
+                    exit();
+                }
+                mysqli_stmt_close($stmt_check);
+            }
+        }
+
+        // Handle file upload for equipment image
+        $equipment_image = '';
+        $update_image = false;
+        
+        if (isset($_FILES['equipment_image']) && $_FILES['equipment_image']['size'] > 0) {
+            $file = $_FILES['equipment_image'];
+            $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $max_size = 5 * 1024 * 1024; // 5MB
+            
+            if (!in_array($file['type'], $allowed_types)) {
+                $error_message = "Invalid file type. Please upload an image file (JPG, PNG, GIF, WebP).";
+            } elseif ($file['size'] > $max_size) {
+                $error_message = "File size exceeds 5MB limit.";
+            } else {
+                // Create uploads directory if it doesn't exist
+                if (!is_dir('../uploads/equipment')) {
+                    mkdir('../uploads/equipment', 0755, true);
+                }
+                
+                $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $equipment_image = 'equipment_' . time() . '_' . uniqid() . '.' . $file_extension;
+                $file_path = '../uploads/equipment/' . $equipment_image;
+                
+                if (move_uploaded_file($file['tmp_name'], $file_path)) {
+                    $update_image = true;
+                    
+                    // Delete old image
+                    $get_old_image_query = "SELECT equipment_image FROM equipment WHERE id = ?";
+                    $stmt_old = mysqli_prepare($conn, $get_old_image_query);
+                    if ($stmt_old) {
+                        mysqli_stmt_bind_param($stmt_old, "i", $equipment_id);
+                        mysqli_stmt_execute($stmt_old);
+                        $result_old = mysqli_stmt_get_result($stmt_old);
+                        if ($row_old = mysqli_fetch_assoc($result_old)) {
+                            if (!empty($row_old['equipment_image'])) {
+                                $old_image_path = '../uploads/equipment/' . $row_old['equipment_image'];
+                                if (file_exists($old_image_path)) {
+                                    unlink($old_image_path);
+                                }
+                            }
+                        }
+                        mysqli_stmt_close($stmt_old);
+                    }
+                } else {
+                    $error_message = "Failed to upload image. Please try again.";
+                }
+            }
+        }
+        
+        // Update database
+        if (empty($error_message)) {
+            if ($update_image) {
+                $update_query = "UPDATE equipment SET equipment_name=?, equipment_image=?, category_id=?, serial_number=?, 
+                                equipment_location_id=?, purchase_date=?, starting_date=?, expired_date=?, statuss=?, updated_at=NOW() 
+                                WHERE id=?";
+                $stmt = mysqli_prepare($conn, $update_query);
+                mysqli_stmt_bind_param($stmt, "ssisssdssi", $equipment_name, $equipment_image, $category_id, $serial_number, 
+                                      $equipment_location_id, $purchase_date, $starting_date, $expired_date, $statuss, $equipment_id);
+            } else {
+                $update_query = "UPDATE equipment SET equipment_name=?, category_id=?, serial_number=?, 
+                                equipment_location_id=?, purchase_date=?, starting_date=?, expired_date=?, statuss=?, updated_at=NOW() 
+                                WHERE id=?";
+                $stmt = mysqli_prepare($conn, $update_query);
+                mysqli_stmt_bind_param($stmt, "sisssdssi", $equipment_name, $category_id, $serial_number, 
+                                      $equipment_location_id, $purchase_date, $starting_date, $expired_date, $statuss, $equipment_id);
+            }
+            
+            if ($stmt && mysqli_stmt_execute($stmt)) {
+                mysqli_stmt_close($stmt);
+                $_SESSION['success_message'] = "Equipment updated successfully!";
+                header("Location: equipment.php");
+                exit();
+            } else {
+                $_SESSION['error_message'] = "Error updating equipment: " . mysqli_error($conn);
+                header("Location: equipment.php");
+                exit();
+            }
+        }
+    }
+}
+
 // Handle Delete Equipment
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_equipment') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
@@ -233,8 +400,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Fetch all equipment
-$equipment_query = "SELECT e.id, e.equipment_name, e.equipment_image, e.serial_number, e.statuss, 
-                    c.category_name, l.location_name, e.purchase_date, e.expired_date, e.created_at
+$equipment_query = "SELECT e.id, e.equipment_name, e.equipment_image, e.serial_number, e.statuss,
+                    e.category_id, e.equipment_location_id, e.purchase_date, e.starting_date, e.expired_date,
+                    c.category_name, l.location_name, e.created_at
                     FROM equipment e
                     LEFT JOIN category c ON e.category_id = c.category_id
                     LEFT JOIN equipment_location l ON e.equipment_location_id = l.location_id
@@ -931,15 +1099,16 @@ if (empty($_SESSION['csrf_token'])) {
         </div>
     </main>
 
-    <!-- Add Equipment Modal -->
+    <!-- Add/Edit Equipment Modal -->
     <div id="addEquipmentModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Add New Equipment</h3>
+                <h3 id="modalTitle">Add New Equipment</h3>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             <form method="POST" action="" enctype="multipart/form-data" id="equipmentForm">
-                <input type="hidden" name="action" value="add_equipment">
+                <input type="hidden" name="action" id="formAction" value="add_equipment">
+                <input type="hidden" name="equipment_id" id="equipment_id" value="">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
 
                 <div class="form-group">
@@ -1044,7 +1213,7 @@ if (empty($_SESSION['csrf_token'])) {
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add Equipment</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Add Equipment</button>
                 </div>
             </form>
         </div>
@@ -1076,6 +1245,10 @@ if (empty($_SESSION['csrf_token'])) {
         const fileName = document.getElementById('fileName');
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
         const previewImage = document.getElementById('previewImage');
+        const modalTitle = document.getElementById('modalTitle');
+        const formAction = document.getElementById('formAction');
+        const equipmentIdInput = document.getElementById('equipment_id');
+        const submitBtn = document.getElementById('submitBtn');
         
         // Warranty fields
         const warrantyYes = document.getElementById('warranty_yes');
@@ -1106,6 +1279,13 @@ if (empty($_SESSION['csrf_token'])) {
             warrantyNo.checked = true;
             warrantyFields.style.display = 'none';
             imagePreviewContainer.classList.remove('show');
+            
+            // Reset modal for Add mode
+            modalTitle.textContent = 'Add New Equipment';
+            formAction.value = 'add_equipment';
+            equipmentIdInput.value = '';
+            submitBtn.textContent = 'Add Equipment';
+            
             addEquipmentModal.classList.add('show');
         });
 
@@ -1244,11 +1424,64 @@ if (empty($_SESSION['csrf_token'])) {
             viewEquipmentModal.classList.add('show');
         }
 
-        // Edit Equipment - Placeholder function
+        // Edit Equipment
         function editEquipment(id) {
-            alert('Edit functionality will be implemented in the next phase.\nEquipment ID: ' + id);
-            // TODO: Implement edit functionality
-            // This will open a modal with pre-filled equipment data
+            // Show loading state or similar if desired
+            
+            // Fetch equipment details
+            fetch('equipment.php?action=get_equipment_details&id=' + id)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const equipment = data.data;
+                        
+                        // Populate form fields
+                        document.getElementById('equipment_name').value = equipment.equipment_name;
+                        document.getElementById('category_id').value = equipment.category_id;
+                        document.getElementById('serial_number').value = equipment.serial_number || '';
+                        document.getElementById('equipment_location_id').value = equipment.equipment_location_id;
+                        document.getElementById('purchase_date').value = equipment.purchase_date || '';
+                        document.getElementById('statuss').value = equipment.statuss;
+                        
+                        // Handle warranty
+                        if (equipment.starting_date && equipment.expired_date) {
+                            warrantyYes.checked = true;
+                            warrantyFields.style.display = 'block';
+                            document.getElementById('starting_date').value = equipment.starting_date;
+                            document.getElementById('expired_date').value = equipment.expired_date;
+                        } else {
+                            warrantyNo.checked = true;
+                            warrantyFields.style.display = 'none';
+                            document.getElementById('starting_date').value = '';
+                            document.getElementById('expired_date').value = '';
+                        }
+                        
+                        // Handle image preview
+                        if (equipment.equipment_image) {
+                            previewImage.src = '../uploads/equipment/' + equipment.equipment_image;
+                            imagePreviewContainer.classList.add('show');
+                            fileName.textContent = 'Current Image: ' + equipment.equipment_image;
+                        } else {
+                            imagePreviewContainer.classList.remove('show');
+                            fileName.textContent = '';
+                        }
+                        
+                        // Set modal for Edit mode
+                        modalTitle.textContent = 'Edit Equipment';
+                        formAction.value = 'update_equipment';
+                        equipmentIdInput.value = equipment.id;
+                        submitBtn.textContent = 'Update Equipment';
+                        
+                        // Show modal
+                        addEquipmentModal.classList.add('show');
+                    } else {
+                        alert('Error fetching equipment details: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while fetching equipment details.');
+                });
         }
 
         // Escape HTML function for security
@@ -1263,8 +1496,16 @@ if (empty($_SESSION['csrf_token'])) {
             return text.replace(/[&<>"']/g, m => map[m]);
         }
 
-        // Form validation
+        // Form validation and Loading State
         equipmentForm.addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            // Prevent double submission
+            if (submitBtn.disabled) {
+                e.preventDefault();
+                return;
+            }
+
             const equipmentName = document.getElementById('equipment_name').value.trim();
             const categoryId = document.getElementById('category_id').value;
             const locationId = document.getElementById('equipment_location_id').value;
@@ -1285,6 +1526,32 @@ if (empty($_SESSION['csrf_token'])) {
                 e.preventDefault();
                 alert('Please select a location');
                 return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.7';
+            submitBtn.style.cursor = 'not-allowed';
+            const originalText = submitBtn.textContent; // Store original text if needed
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        });
+
+        // Handle Delete Forms Loading State
+        document.querySelectorAll('.btn-delete').forEach(btn => {
+            const form = btn.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    if (btn.disabled) {
+                        e.preventDefault();
+                        return;
+                    }
+                    
+                    // Disable button and show loading
+                    btn.disabled = true;
+                    btn.style.opacity = '0.7';
+                    btn.style.cursor = 'not-allowed';
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                });
             }
         });
     </script>

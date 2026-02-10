@@ -15,12 +15,6 @@ require_once '../config/db.php';
 $user_role = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : '';
 $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 
-// Check if user is admin
-if ($user_role !== 'admin') {
-    header("Location: dashboard.php?error=" . urlencode("You do not have permission to access this page"));
-    exit();
-}
-
 // Get equipment ID from URL
 $equipment_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 

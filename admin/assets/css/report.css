@@ -325,57 +325,112 @@
         }
 
         @media print {
+            /* Global Reset for Print */
+            *, *::before, *::after {
+                box-sizing: border-box;
+            }
+
+            body, html {
+                background: white !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                font-size: 12px; /* Smaller font for print */
+            }
+
+            /* Hide UI Elements */
             .filter-section,
             .sidebar,
             header,
+            .header,
             .filter-actions,
             .btn-export,
-            .tab-container {
+            .btn-reset,
+            .btn-filter,
+            .tab-container,
+            .sidebar-footer,
+            #sidebar,
+            .main-content > .header {
                 display: none !important;
             }
 
+            /* Layout Adjustments */
             .main-content {
                 margin-left: 0 !important;
                 padding: 0 !important;
+                width: 100% !important;
+                min-height: auto !important;
             }
 
             .dashboard-content {
                 padding: 0 !important;
+                margin: 0 !important;
             }
 
             .report-section {
-                box-shadow: none;
-                padding: 0;
-                margin-top: 20px;
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin-top: 20px !important;
+                width: 100% !important;
             }
             
-            .report-table table {
-                page-break-inside: auto;
+            /* Table Adjustments */
+            .report-table {
+                overflow: visible !important;
+                width: 100% !important;
+                display: block !important;
             }
 
-            .report-table tr {
-                page-break-inside: avoid;
-                page-break-after: auto;
+            .report-table table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                page-break-inside: auto;
             }
 
             .report-table thead {
                 display: table-header-group;
+                background-color: #fff;
             }
 
+            .report-table tbody tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+
+            .report-table th,
+            .report-table td {
+                padding: 8px 4px !important;
+                border: 1px solid #000 !important;
+                color: #000 !important;
+                font-size: 11px !important;
+                background-color: #fff;
+            }
+
+            /* Badge Adjustments for Print */
+            .badge {
+                border: 1px solid #ccc;
+                background: #f0f0f0 !important;
+                color: #000 !important;
+                padding: 2px 6px;
+            }
+
+            /* Print Header & Footer */
             .print-header {
                 display: block !important;
                 text-align: center;
-                margin-bottom: 30px;
+                margin-bottom: 20px;
             }
 
             .print-header img {
-                max-width: 150px;
+                max-width: 120px;
                 height: auto;
                 margin-bottom: 10px;
             }
 
             .print-header h1 {
-                font-size: 24px;
+                font-size: 20px;
                 color: #000;
                 margin: 0;
             }
@@ -383,7 +438,7 @@
             .print-footer {
                 display: flex !important;
                 justify-content: space-between;
-                margin-top: 50px;
+                margin-top: 40px;
                 padding-top: 20px;
                 page-break-inside: avoid;
             }
@@ -394,23 +449,33 @@
             }
 
             .signature-line {
-                border-bottom: 1px dotted #000;
-                margin-bottom: 10px;
-                height: 40px;
+                border-bottom: 1px solid #000;
+                margin-bottom: 5px;
+                height: 30px;
             }
             
             .signature-name {
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 12px;
             }
             
             .signature-title {
-                font-size: 12px;
+                font-size: 10px;
                 color: #555;
             }
 
-            body {
-                background: white;
+            /* Tab Content Logic */
+            .tab-content {
+                display: none !important;
+            }
+            
+            .tab-content.active {
+                display: block !important;
+            }
+
+            /* Hide empty state icons or large graphics if needed */
+            .empty-state i {
+                display: none;
             }
         }
 

@@ -20,6 +20,7 @@ if (!$is_admin) {
 
 // Include database connection
 include('../config/db.php');
+require_once('../lib/mailer.php');
 
 // Generate CSRF token if not exists
 if (empty($_SESSION['schedule_token'])) {
@@ -34,6 +35,9 @@ $schedules = [];
 // Check if redirect came from successful insert
 if (isset($_GET['success']) && $_GET['success'] == '1') {
     $success_message = "Maintenance schedule added successfully!";
+    if (isset($_GET['warning'])) {
+        $success_message .= " (Warning: Email notification failed: " . htmlspecialchars($_GET['warning']) . ")";
+    }
 }
 
 // Check if redirect came from successful edit
@@ -52,35 +56,146 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['schedule_token']) {
         $error_message = "Security token validation failed. Please try again.";
     } else {
-        $equipment_id = intval($_POST['equipment_id']);
+        $equipment_ids = isset($_POST['equipment_id']) ? $_POST['equipment_id'] : [];
+        if (!is_array($equipment_ids)) {
+            $equipment_ids = [$equipment_ids];
+        }
         $maintenance_type = trim($_POST['maintenance_type']);
         $interval_value = intval($_POST['interval_value']);
         $interval_unit = trim($_POST['interval_unit']);
         $start_date = trim($_POST['start_date']);
         $assigned_to_user_id = intval($_POST['assigned_to_user_id']);
         
-        if (!empty($equipment_id) && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
+        if (!empty($equipment_ids) && !empty($maintenance_type) && $interval_value > 0 && !empty($interval_unit) && !empty($start_date) && !empty($assigned_to_user_id)) {
             // Validate interval_unit
             $valid_units = ['SECOND', 'MINUTE', 'DAY', 'MONTH', 'YEAR'];
             if (!in_array($interval_unit, $valid_units)) {
                 $error_message = "Invalid interval unit selected.";
             } else {
+                $inserted_count = 0;
+                $assigned_equipment_names = [];
+                $error_occurred = false;
+
+                // Fetch Technician Details once
+                $tech_email = '';
+                $tech_name = '';
+                $tech_sql = "SELECT email, firstname, lastname FROM users WHERE user_id = ?";
+                $tech_stmt = $conn->prepare($tech_sql);
+                if ($tech_stmt) {
+                    $tech_stmt->bind_param("i", $assigned_to_user_id);
+                    $tech_stmt->execute();
+                    $tech_result = $tech_stmt->get_result();
+                    if ($tech_data = $tech_result->fetch_assoc()) {
+                        $tech_email = $tech_data['email'];
+                        $tech_name = $tech_data['firstname'] . ' ' . $tech_data['lastname'];
+                    }
+                    $tech_stmt->close();
+                }
+
                 $sql = "INSERT INTO maintenance_schedule (equipment_id, maintenance_type, interval_value, interval_unit, start_date, assigned_to_user_id) 
                         VALUES (?, ?, ?, ?, ?, ?)";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("isissi", $equipment_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id);
-                
-                if ($stmt->execute()) {
-                    $stmt->close();
+
+                foreach ($equipment_ids as $eq_id) {
+                    $eq_id = intval($eq_id);
+                    if ($eq_id <= 0) continue;
+
+                    $stmt->bind_param("isissi", $eq_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id);
+                    
+                    if ($stmt->execute()) {
+                        $inserted_count++;
+                        
+                        // Fetch Equipment Name
+                        $eq_name_sql = "SELECT equipment_name FROM equipment WHERE id = ?";
+                        $eq_name_stmt = $conn->prepare($eq_name_sql);
+                        if ($eq_name_stmt) {
+                            $eq_name_stmt->bind_param("i", $eq_id);
+                            $eq_name_stmt->execute();
+                            $eq_name_result = $eq_name_stmt->get_result();
+                            if ($eq_row = $eq_name_result->fetch_assoc()) {
+                                $assigned_equipment_names[] = $eq_row['equipment_name'];
+                                
+                                // Notification for each equipment (or we could batch, but separate notifications are fine for history)
+                                $notif_msg = "New maintenance schedule assigned for " . $eq_row['equipment_name'];
+                                $notif_type = "schedule";
+                                $notif_sql = "INSERT INTO notification (user_id, message, type, is_read) VALUES (?, ?, ?, 0)";
+                                $notif_stmt = $conn->prepare($notif_sql);
+                                if ($notif_stmt) {
+                                    $notif_stmt->bind_param("iss", $assigned_to_user_id, $notif_msg, $notif_type);
+                                    $notif_stmt->execute();
+                                    $notif_stmt->close();
+                                }
+                            }
+                            $eq_name_stmt->close();
+                        }
+                    } else {
+                        $error_occurred = true;
+                        $error_message = "Error adding schedule for equipment ID $eq_id: " . $conn->error;
+                    }
+                }
+                $stmt->close();
+
+                if ($inserted_count > 0) {
+                    // Send One Email with List
+                    if (!empty($tech_email)) {
+                        $subject = 'New Maintenance Schedules Assigned - Action Required';
+                        
+                        $equipment_list_html = "";
+                        foreach ($assigned_equipment_names as $name) {
+                            $equipment_list_html .= "<li style='margin-bottom: 5px; color: #1e293b;'><strong>" . htmlspecialchars($name) . "</strong></li>";
+                        }
+
+                        $htmlBody = "
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px; background-color: #ffffff;'>
+                            <div style='text-align: center; margin-bottom: 20px;'>
+                                <img src='cid:company_logo' alt='Company Logo' style='max-width: 150px; height: auto;'>
+                            </div>
+                            <div style='background-color: #f0f9ff; padding: 15px; border-left: 4px solid #0284c7; margin-bottom: 25px; border-radius: 0 4px 4px 0;'>
+                                <h2 style='margin: 0; color: #0c4a6e; font-size: 20px;'>New Maintenance Assignments</h2>
+                            </div>
+                            <p style='color: #334155; font-size: 16px; line-height: 1.5;'>Dear <strong>" . htmlspecialchars($tech_name) . "</strong>,</p>
+                            <p style='color: #334155; font-size: 16px; line-height: 1.5;'>You have been assigned new maintenance schedules for the following equipment:</p>
+                            
+                            <ul style='background-color: #f8fafc; padding: 15px 15px 15px 35px; border-radius: 8px; margin: 20px 0;'>
+                                $equipment_list_html
+                            </ul>
+
+                            <table style='width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px;'>
+                                <tr style='background-color: #f8fafc;'>
+                                    <td style='padding: 12px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #475569; width: 40%;'>Maintenance Type:</td>
+                                    <td style='padding: 12px; border-bottom: 1px solid #e2e8f0; color: #1e293b;'>" . htmlspecialchars($maintenance_type) . "</td>
+                                </tr>
+                                <tr>
+                                    <td style='padding: 12px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #475569;'>Frequency:</td>
+                                    <td style='padding: 12px; border-bottom: 1px solid #e2e8f0; color: #1e293b;'>Every " . htmlspecialchars($interval_value) . " " . htmlspecialchars($interval_unit) . "</td>
+                                </tr>
+                                <tr style='background-color: #f8fafc;'>
+                                    <td style='padding: 12px; border-bottom: 1px solid #e2e8f0; font-weight: bold; color: #475569;'>Start Date:</td>
+                                    <td style='padding: 12px; border-bottom: 1px solid #e2e8f0; color: #1e293b;'>" . htmlspecialchars($start_date) . "</td>
+                                </tr>
+                            </table>
+                            
+                            <p style='color: #334155; font-size: 16px; line-height: 1.5;'>Please log into the Technician Dashboard to view more details and update the status once the tasks are initiated.</p>
+                            
+                            <div style='margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;'>
+                                <p>This is an automated notification from the Equipment Management System.</p>
+                                <p>&copy; " . date('Y') . " Equipment Management System. All rights reserved.</p>
+                            </div>
+                        </div>
+                        ";
+                        $mailResult = send_app_mail($tech_email, $tech_name, $subject, $htmlBody);
+                    }
+
                     // Regenerate token after successful submission
                     $_SESSION['schedule_token'] = bin2hex(random_bytes(32));
                     // Redirect to prevent duplicate submission on refresh
-                    header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?success=1" . (isset($mailResult) && !$mailResult['success'] ? "&warning=" . urlencode($mailResult['error']) : ""));
                     exit();
                 } else {
-                    $error_message = "Error adding schedule: " . $conn->error;
+                    if (!$error_occurred) {
+                        $error_message = "No equipment selected or invalid IDs.";
+                    }
                 }
-                $stmt->close();
             }
         } else {
             $error_message = "All fields are required!";
@@ -128,7 +243,7 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
             } else {
                 $sql = "UPDATE maintenance_schedule SET equipment_id = ?, maintenance_type = ?, interval_value = ?, interval_unit = ?, start_date = ?, assigned_to_user_id = ? WHERE schedule_id = ?";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("isssii", $equipment_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id, $schedule_id);
+                $stmt->bind_param("isissii", $equipment_id, $maintenance_type, $interval_value, $interval_unit, $start_date, $assigned_to_user_id, $schedule_id);
                 
                 if ($stmt->execute()) {
                     $stmt->close();
@@ -842,17 +957,19 @@ if ($result && $result->num_rows > 0) {
                         <button class="modal-close" id="closeModalBtn">&times;</button>
                     </div>
 
-                    <form method="POST" action="" class="modal-form">
+                    <form method="POST" action="" class="modal-form" id="addScheduleForm">
                         <div class="form-group">
-                            <label for="modal_equipment_id">Equipment *</label>
-                            <select id="modal_equipment_id" name="equipment_id" required>
-                                <option value="">-- Select Equipment --</option>
+                            <label for="modal_equipment_id">Equipment (Hold Ctrl/Cmd to select multiple) *</label>
+                            <select id="modal_equipment_id" name="equipment_id[]" multiple required style="height: 120px;">
                                 <?php foreach ($equipment_list as $eq): ?>
                                     <option value="<?php echo $eq['id']; ?>">
                                         <?php echo htmlspecialchars($eq['equipment_name']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <p style="font-size: 12px; color: var(--gray-500); margin-top: 5px;">
+                                <i class="fas fa-info-circle"></i> You can select multiple equipment for the same schedule.
+                            </p>
                         </div>
 
                         <div class="form-group">
@@ -940,7 +1057,7 @@ if ($result && $result->num_rows > 0) {
                         <button class="modal-close" id="closeEditModalBtn">&times;</button>
                     </div>
 
-                    <form method="POST" action="" class="modal-form">
+                    <form method="POST" action="" class="modal-form" id="editScheduleForm">
                         <div class="form-group">
                             <label for="edit_equipment_id">Equipment *</label>
                             <select id="edit_equipment_id" name="equipment_id" required>
@@ -1197,6 +1314,55 @@ if ($result && $result->num_rows > 0) {
         // Prevent modal close when clicking inside modal content
         editScheduleModal.querySelector('.modal-content').addEventListener('click', function(event) {
             event.stopPropagation();
+        });
+
+        // Loading State for Add Schedule Form
+        const addScheduleForm = document.getElementById('addScheduleForm');
+        if (addScheduleForm) {
+            addScheduleForm.addEventListener('submit', function(e) {
+                const submitBtn = this.querySelector('button[type="submit"]');
+                if (submitBtn.disabled) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // Disable button and show loading
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = '0.7';
+                submitBtn.style.cursor = 'not-allowed';
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+            });
+        }
+
+        // Loading State for Edit Schedule Form
+        const editScheduleForm = document.getElementById('editScheduleForm');
+        if (editScheduleForm) {
+            editScheduleForm.addEventListener('submit', function(e) {
+                const submitBtn = this.querySelector('button[type="submit"]');
+                if (submitBtn.disabled) {
+                    e.preventDefault();
+                    return;
+                }
+                
+                // Disable button and show loading
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = '0.7';
+                submitBtn.style.cursor = 'not-allowed';
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            });
+        }
+
+        // Loading State for Delete Forms
+        document.querySelectorAll('form[onsubmit*="delete"]').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                const submitBtn = this.querySelector('button[type="submit"]');
+                if (submitBtn.disabled) {
+                    e.preventDefault();
+                    return;
+                }
+                submitBtn.disabled = true;
+                // No text change for icon buttons, just disable
+            });
         });
     </script>
     <?php endif; ?>

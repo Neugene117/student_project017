@@ -190,6 +190,22 @@ if ($result) {
     }
 }
 
+// --- Top Performing Technicians ---
+$top_technicians = [];
+$sql = "SELECT u.firstname, u.lastname, u.user_id, COUNT(m.mid) as completed_count 
+        FROM users u 
+        JOIN maintenance m ON u.user_id = m.user_id 
+        WHERE m.statuss = 'Completed' 
+        GROUP BY u.user_id 
+        ORDER BY completed_count DESC 
+        LIMIT 5";
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $top_technicians[] = $row;
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -365,7 +381,7 @@ if ($result) {
                 <div class="card activity-card">
                     <div class="card-header">
                         <h3><i class="fas fa-history"></i> Recent Activities</h3>
-                        <a href="#" class="view-all">View All</a>
+                        <a href="notifications.php" class="view-all">View All</a>
                     </div>
                     <div class="card-body">
                         <div class="activity-list">
@@ -432,8 +448,8 @@ if ($result) {
                 </div>
             </div>
 
-            <!-- Quick Actions & System Status -->
-            <div class="content-grid bottom-grid">
+            <!-- Quick Actions & Top Technicians -->
+            <div class="content-grid">
                 <!-- Quick Actions -->
                 <div class="card quick-actions-card">
                     <div class="card-header">
@@ -441,30 +457,56 @@ if ($result) {
                     </div>
                     <div class="card-body">
                         <div class="quick-actions">
-                            <button class="action-btn">
+                            <a href="equipment.php" class="action-btn">
                                 <i class="fas fa-plus-circle"></i>
                                 <span>Add Equipment</span>
-                            </button>
-                            <button class="action-btn">
+                            </a>
+                            <a href="schedules.php" class="action-btn">
                                 <i class="fas fa-wrench"></i>
                                 <span>Schedule Maintenance</span>
-                            </button>
-                            <button class="action-btn">
+                            </a>
+                            <a href="breakdowns.php" class="action-btn">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <span>Report Breakdown</span>
-                            </button>
-                            <button class="action-btn">
+                            </a>
+                            <a href="users.php" class="action-btn">
                                 <i class="fas fa-user-plus"></i>
                                 <span>Add User</span>
-                            </button>
-                            <button class="action-btn">
+                            </a>
+                            <a href="categories.php" class="action-btn">
                                 <i class="fas fa-layer-group"></i>
                                 <span>Add Category</span>
-                            </button>
-                            <button class="action-btn">
+                            </a>
+                            <a href="equipment_location.php" class="action-btn">
                                 <i class="fas fa-map-marker-alt"></i>
                                 <span>Add Location</span>
-                            </button>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Technicians -->
+                <div class="card top-technicians-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-user-cog"></i> Top Technicians</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="activity-list">
+                            <?php if (empty($top_technicians)): ?>
+                                <p class="activity-text" style="padding: 10px;">No data available.</p>
+                            <?php else: ?>
+                                <?php foreach ($top_technicians as $tech): ?>
+                                    <div class="activity-item">
+                                        <div class="activity-icon user">
+                                            <i class="fas fa-user-check"></i>
+                                        </div>
+                                        <div class="activity-content">
+                                            <p class="activity-text"><strong><?php echo htmlspecialchars($tech['firstname'] . ' ' . $tech['lastname']); ?></strong></p>
+                                            <span class="activity-time"><?php echo $tech['completed_count']; ?> Tasks Completed</span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -486,5 +528,39 @@ if ($result) {
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="./assets/js/script.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // Check for error or success messages in URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const errorMsg = urlParams.get('error');
+        const successMsg = urlParams.get('success');
+
+        if (errorMsg) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMsg,
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'OK'
+            }).then(() => {
+                // Optional: Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            });
+        }
+
+        if (successMsg) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text: successMsg,
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'OK'
+            }).then(() => {
+                // Optional: Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            });
+        }
+    </script>
 </body>
 </html>

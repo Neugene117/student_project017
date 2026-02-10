@@ -17,10 +17,15 @@ $user_id = $_SESSION['user_id'] ?? null;
 // Handle notification deletion
 if (isset($_POST['delete_notification'])) {
     $notification_id = intval($_POST['notification_id']);
-    $delete_query = "DELETE FROM notification WHERE notification_id = '$notification_id'";
+    // Only allow deletion if the notification belongs to the user
+    $delete_query = "DELETE FROM notification WHERE notification_id = '$notification_id' AND user_id = '$user_id'";
     
     if (mysqli_query($conn, $delete_query)) {
-        $_SESSION['success_message'] = "Notification deleted successfully";
+        if (mysqli_affected_rows($conn) > 0) {
+            $_SESSION['success_message'] = "Notification deleted successfully";
+        } else {
+            $_SESSION['error_message'] = "Notification not found or access denied";
+        }
     } else {
         $_SESSION['error_message'] = "Failed to delete notification";
     }
@@ -31,13 +36,14 @@ if (isset($_POST['delete_notification'])) {
 // Handle mark as read
 if (isset($_POST['mark_read'])) {
     $notification_id = intval($_POST['notification_id']);
-    $update_query = "UPDATE notification SET is_read = 1 WHERE notification_id = '$notification_id'";
+    // Only allow marking as read if the notification belongs to the user
+    $update_query = "UPDATE notification SET is_read = 1 WHERE notification_id = '$notification_id' AND user_id = '$user_id'";
     mysqli_query($conn, $update_query);
     header("Location: notifications.php");
     exit();
 }
 
-// Handle mark all as read
+// Handle mark all as read (kept for backward compatibility or manual trigger if needed, though auto-read handles it)
 if (isset($_POST['mark_all_read'])) {
     $update_query = "UPDATE notification SET is_read = 1 WHERE user_id = '$user_id'";
     mysqli_query($conn, $update_query);
@@ -45,9 +51,15 @@ if (isset($_POST['mark_all_read'])) {
     exit();
 }
 
+// Automatically mark all notifications as read when page is opened
+if ($user_id) {
+    $update_query = "UPDATE notification SET is_read = 1 WHERE user_id = '$user_id' AND is_read = 0";
+    mysqli_query($conn, $update_query);
+}
+
 // Fetch notifications
 $notifications = [];
-$unread_count = 0;
+$unread_count = 0; // Will be 0 since we just marked them as read
 
 if ($user_id) {
     // Get all notifications for the user
@@ -56,9 +68,7 @@ if ($user_id) {
     
     while ($row = mysqli_fetch_assoc($result)) {
         $notifications[] = $row;
-        if (!$row['is_read']) {
-            $unread_count++;
-        }
+        // No need to count unread since we just marked them all as read
     }
 }
 

@@ -420,4 +420,43 @@
             from { transform: translateY(-20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-    
+
+        /* Action Buttons */
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            margin: 0 4px;
+            text-decoration: none; /* For the anchor tag */
+        }
+
+        .edit-btn {
+            background-color: #e0f2fe;
+            color: #0284c7;
+        }
+
+        .edit-btn:hover {
+            background-color: #0284c7;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);
+        }
+
+        .delete-btn {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+
+        .delete-btn:hover {
+            background-color: #dc2626;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+        }

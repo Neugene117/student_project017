@@ -37,6 +37,8 @@ $user_role = $user_data['role_name'];
 $user_fullname = $user_data['firstname'] . ' ' . $user_data['lastname'];
 $stmt_role->close();
 
+$role_id = $_SESSION['role_id'];
+
 // Set default date range
 $start_date = $_GET['start_date'] ?? date('Y-m-01'); // First day of current month
 $end_date = $_GET['end_date'] ?? date('Y-m-t'); // Last day of current month
@@ -55,20 +57,31 @@ $start_date = date('Y-m-d', strtotime($start_date));
 $end_date = date('Y-m-d', strtotime($end_date));
 
 // Function to get maintenance statistics
-function getMaintenanceStats($conn, $start_date, $end_date) {
+function getMaintenanceStats($conn, $start_date, $end_date, $user_id, $role_id) {
     $sql = "SELECT 
                 COUNT(*) as total_maintenance,
-                SUM(CASE WHEN statuss = 'Completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN statuss = 'In Progress' THEN 1 ELSE 0 END) as in_progress,
-                SUM(CASE WHEN statuss = 'Scheduled' THEN 1 ELSE 0 END) as scheduled,
-                SUM(cost) as total_cost,
-                AVG(cost) as avg_cost
-            FROM maintenance 
-            WHERE DATE(completed_date) BETWEEN ? AND ?
-            OR (statuss = 'Scheduled' AND DATE(created_at) BETWEEN ? AND ?)";
+                SUM(CASE WHEN m.statuss = 'Completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN m.statuss = 'In Progress' THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN m.statuss = 'Scheduled' THEN 1 ELSE 0 END) as scheduled,
+                SUM(m.cost) as total_cost,
+                AVG(m.cost) as avg_cost
+            FROM maintenance m
+            LEFT JOIN equipment e ON m.equipment_id = e.id
+            LEFT JOIN maintenance_schedule ms ON m.maintenance_schedule_id = ms.schedule_id
+            WHERE (DATE(m.completed_date) BETWEEN ? AND ?
+            OR (m.statuss = 'Scheduled' AND DATE(m.created_at) BETWEEN ? AND ?))";
+    
+    if ($role_id != 1) { // Not Admin
+        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+    }
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+    if ($role_id != 1) {
+        $stmt->bind_param("ssssii", $start_date, $end_date, $start_date, $end_date, $user_id, $user_id);
+    } else {
+        $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+    }
+    
     $stmt->execute();
     $result = $stmt->get_result();
     $stats = $result->fetch_assoc();
@@ -77,20 +90,30 @@ function getMaintenanceStats($conn, $start_date, $end_date) {
 }
 
 // Function to get breakdown statistics
-function getBreakdownStats($conn, $start_date, $end_date) {
+function getBreakdownStats($conn, $start_date, $end_date, $user_id, $role_id) {
     $sql = "SELECT 
                 COUNT(*) as total_breakdowns,
-                SUM(CASE WHEN priority = 'High' THEN 1 ELSE 0 END) as `high_priority`,
-                SUM(CASE WHEN priority = 'Medium' THEN 1 ELSE 0 END) as `medium_priority`,
-                SUM(CASE WHEN priority = 'Low' THEN 1 ELSE 0 END) as `low_priority`,
-                SUM(CASE WHEN statuss = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-                SUM(CASE WHEN statuss = 'Open' THEN 1 ELSE 0 END) as open_status,
-                SUM(CASE WHEN statuss = 'Under Repair' THEN 1 ELSE 0 END) as under_repair
-            FROM breakdown 
-            WHERE DATE(breakdown_date) BETWEEN ? AND ?";
+                SUM(CASE WHEN b.priority = 'High' THEN 1 ELSE 0 END) as `high_priority`,
+                SUM(CASE WHEN b.priority = 'Medium' THEN 1 ELSE 0 END) as `medium_priority`,
+                SUM(CASE WHEN b.priority = 'Low' THEN 1 ELSE 0 END) as `low_priority`,
+                SUM(CASE WHEN b.statuss = 'Resolved' THEN 1 ELSE 0 END) as resolved,
+                SUM(CASE WHEN b.statuss = 'Open' THEN 1 ELSE 0 END) as open_status,
+                SUM(CASE WHEN b.statuss = 'Under Repair' THEN 1 ELSE 0 END) as under_repair
+            FROM breakdown b
+            LEFT JOIN equipment e ON b.equipment_id = e.id
+            WHERE DATE(b.breakdown_date) BETWEEN ? AND ?";
+            
+    if ($role_id != 1) { // Not Admin
+        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+    }
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $start_date, $end_date);
+    if ($role_id != 1) {
+        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+    } else {
+        $stmt->bind_param("ss", $start_date, $end_date);
+    }
+
     $stmt->execute();
     $result = $stmt->get_result();
     $stats = $result->fetch_assoc();
@@ -98,22 +121,31 @@ function getBreakdownStats($conn, $start_date, $end_date) {
     return $stats;
 }
 
-// Equipment stats function removed
-
 // Function to get daily maintenance report
-function getDailyMaintenanceReport($conn, $start_date, $end_date) {
+function getDailyMaintenanceReport($conn, $start_date, $end_date, $user_id, $role_id) {
     $sql = "SELECT 
-                DATE(completed_date) as report_date,
+                DATE(m.completed_date) as report_date,
                 COUNT(*) as total_count,
-                SUM(CASE WHEN statuss = 'Completed' THEN 1 ELSE 0 END) as completed_count,
-                SUM(cost) as daily_cost
-            FROM maintenance 
-            WHERE DATE(completed_date) BETWEEN ? AND ?
-            GROUP BY DATE(completed_date)
-            ORDER BY report_date DESC";
+                SUM(CASE WHEN m.statuss = 'Completed' THEN 1 ELSE 0 END) as completed_count,
+                SUM(m.cost) as daily_cost
+            FROM maintenance m
+            LEFT JOIN equipment e ON m.equipment_id = e.id
+            LEFT JOIN maintenance_schedule ms ON m.maintenance_schedule_id = ms.schedule_id
+            WHERE DATE(m.completed_date) BETWEEN ? AND ?";
+            
+    if ($role_id != 1) { // Not Admin
+        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+    }
+    
+    $sql .= " GROUP BY DATE(m.completed_date) ORDER BY report_date DESC";
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $start_date, $end_date);
+    if ($role_id != 1) {
+        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+    } else {
+        $stmt->bind_param("ss", $start_date, $end_date);
+    }
+
     $stmt->execute();
     $result = $stmt->get_result();
     $data = [];
@@ -125,20 +157,31 @@ function getDailyMaintenanceReport($conn, $start_date, $end_date) {
 }
 
 // Function to get monthly maintenance report
-function getMonthlyMaintenanceReport($conn, $year) {
+function getMonthlyMaintenanceReport($conn, $year, $user_id, $role_id) {
     $sql = "SELECT 
-                MONTH(completed_date) as month_num,
-                MONTHNAME(completed_date) as month_name,
+                MONTH(m.completed_date) as month_num,
+                MONTHNAME(m.completed_date) as month_name,
                 COUNT(*) as total_count,
-                SUM(CASE WHEN statuss = 'Completed' THEN 1 ELSE 0 END) as completed_count,
-                SUM(cost) as monthly_cost
-            FROM maintenance 
-            WHERE YEAR(completed_date) = ?
-            GROUP BY MONTH(completed_date), MONTHNAME(completed_date)
-            ORDER BY month_num DESC";
+                SUM(CASE WHEN m.statuss = 'Completed' THEN 1 ELSE 0 END) as completed_count,
+                SUM(m.cost) as monthly_cost
+            FROM maintenance m
+            LEFT JOIN equipment e ON m.equipment_id = e.id
+            LEFT JOIN maintenance_schedule ms ON m.maintenance_schedule_id = ms.schedule_id
+            WHERE YEAR(m.completed_date) = ?";
+            
+    if ($role_id != 1) { // Not Admin
+        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+    }
+    
+    $sql .= " GROUP BY MONTH(m.completed_date), MONTHNAME(m.completed_date) ORDER BY month_num DESC";
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $year);
+    if ($role_id != 1) {
+        $stmt->bind_param("iii", $year, $user_id, $user_id);
+    } else {
+        $stmt->bind_param("i", $year);
+    }
+
     $stmt->execute();
     $result = $stmt->get_result();
     $data = [];
@@ -150,19 +193,29 @@ function getMonthlyMaintenanceReport($conn, $year) {
 }
 
 // Function to get daily breakdown report
-function getDailyBreakdownReport($conn, $start_date, $end_date) {
+function getDailyBreakdownReport($conn, $start_date, $end_date, $user_id, $role_id) {
     $sql = "SELECT 
-                DATE(breakdown_date) as report_date,
+                DATE(b.breakdown_date) as report_date,
                 COUNT(*) as total_count,
-                SUM(CASE WHEN priority = 'High' THEN 1 ELSE 0 END) as high_priority_count,
-                SUM(CASE WHEN statuss = 'Resolved' THEN 1 ELSE 0 END) as resolved_count
-            FROM breakdown 
-            WHERE DATE(breakdown_date) BETWEEN ? AND ?
-            GROUP BY DATE(breakdown_date)
-            ORDER BY report_date DESC";
+                SUM(CASE WHEN b.priority = 'High' THEN 1 ELSE 0 END) as high_priority_count,
+                SUM(CASE WHEN b.statuss = 'Resolved' THEN 1 ELSE 0 END) as resolved_count
+            FROM breakdown b
+            LEFT JOIN equipment e ON b.equipment_id = e.id
+            WHERE DATE(b.breakdown_date) BETWEEN ? AND ?";
+            
+    if ($role_id != 1) { // Not Admin
+        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+    }
+    
+    $sql .= " GROUP BY DATE(b.breakdown_date) ORDER BY report_date DESC";
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $start_date, $end_date);
+    if ($role_id != 1) {
+        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+    } else {
+        $stmt->bind_param("ss", $start_date, $end_date);
+    }
+
     $stmt->execute();
     $result = $stmt->get_result();
     $data = [];
@@ -174,7 +227,7 @@ function getDailyBreakdownReport($conn, $start_date, $end_date) {
 }
 
 // Function to get detailed maintenance records
-function getMaintenanceRecords($conn, $start_date, $end_date) {
+function getMaintenanceRecords($conn, $start_date, $end_date, $user_id, $role_id) {
     $sql = "SELECT 
                 m.mid,
                 m.maintenance_type,
@@ -188,13 +241,23 @@ function getMaintenanceRecords($conn, $start_date, $end_date) {
             FROM maintenance m
             LEFT JOIN equipment e ON m.equipment_id = e.id
             LEFT JOIN users u ON m.user_id = u.user_id
-            WHERE DATE(m.completed_date) BETWEEN ? AND ?
-            OR (m.statuss = 'Scheduled' AND DATE(m.created_at) BETWEEN ? AND ?)
-            ORDER BY m.completed_date DESC
-            LIMIT 100";
+            LEFT JOIN maintenance_schedule ms ON m.maintenance_schedule_id = ms.schedule_id
+            WHERE (DATE(m.completed_date) BETWEEN ? AND ?
+            OR (m.statuss = 'Scheduled' AND DATE(m.created_at) BETWEEN ? AND ?))";
+            
+    if ($role_id != 1) { // Not Admin
+        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+    }
+    
+    $sql .= " ORDER BY m.completed_date DESC LIMIT 100";
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+    if ($role_id != 1) {
+        $stmt->bind_param("ssssii", $start_date, $end_date, $start_date, $end_date, $user_id, $user_id);
+    } else {
+        $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+    }
+
     $stmt->execute();
     $result = $stmt->get_result();
     $data = [];
@@ -206,7 +269,7 @@ function getMaintenanceRecords($conn, $start_date, $end_date) {
 }
 
 // Function to get detailed breakdown records
-function getBreakdownRecords($conn, $start_date, $end_date) {
+function getBreakdownRecords($conn, $start_date, $end_date, $user_id, $role_id) {
     $sql = "SELECT 
                 b.breakdown_id,
                 b.breakdown_date,
@@ -219,12 +282,21 @@ function getBreakdownRecords($conn, $start_date, $end_date) {
             FROM breakdown b
             LEFT JOIN equipment e ON b.equipment_id = e.id
             LEFT JOIN users u ON b.reported_by_user_id = u.user_id
-            WHERE DATE(b.breakdown_date) BETWEEN ? AND ?
-            ORDER BY b.breakdown_date DESC
-            LIMIT 100";
+            WHERE DATE(b.breakdown_date) BETWEEN ? AND ?";
+            
+    if ($role_id != 1) { // Not Admin
+        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+    }
+    
+    $sql .= " ORDER BY b.breakdown_date DESC LIMIT 100";
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $start_date, $end_date);
+    if ($role_id != 1) {
+        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+    } else {
+        $stmt->bind_param("ss", $start_date, $end_date);
+    }
+
     $stmt->execute();
     $result = $stmt->get_result();
     $data = [];
@@ -236,22 +308,22 @@ function getBreakdownRecords($conn, $start_date, $end_date) {
 }
 
 // Get statistics based on filter
-$maintenance_stats = getMaintenanceStats($conn, $start_date, $end_date);
-$breakdown_stats = getBreakdownStats($conn, $start_date, $end_date);
+$maintenance_stats = getMaintenanceStats($conn, $start_date, $end_date, $user_id, $role_id);
+$breakdown_stats = getBreakdownStats($conn, $start_date, $end_date, $user_id, $role_id);
 
 // Get report data based on type
 $report_data = [];
 if ($report_type === 'daily') {
     if ($filter_type === 'maintenance' || $filter_type === 'all') {
-        $report_data['maintenance'] = getDailyMaintenanceReport($conn, $start_date, $end_date);
+        $report_data['maintenance'] = getDailyMaintenanceReport($conn, $start_date, $end_date, $user_id, $role_id);
     }
     if ($filter_type === 'breakdown' || $filter_type === 'all') {
-        $report_data['breakdown'] = getDailyBreakdownReport($conn, $start_date, $end_date);
+        $report_data['breakdown'] = getDailyBreakdownReport($conn, $start_date, $end_date, $user_id, $role_id);
     }
 } elseif ($report_type === 'yearly') {
     $year = date('Y', strtotime($start_date));
     if ($filter_type === 'maintenance' || $filter_type === 'all') {
-        $report_data['maintenance'] = getMonthlyMaintenanceReport($conn, $year);
+        $report_data['maintenance'] = getMonthlyMaintenanceReport($conn, $year, $user_id, $role_id);
     }
 }
 
@@ -259,10 +331,10 @@ if ($report_type === 'daily') {
 $maintenance_records = [];
 $breakdown_records = [];
 if ($filter_type === 'maintenance' || $filter_type === 'all') {
-    $maintenance_records = getMaintenanceRecords($conn, $start_date, $end_date);
+    $maintenance_records = getMaintenanceRecords($conn, $start_date, $end_date, $user_id, $role_id);
 }
 if ($filter_type === 'breakdown' || $filter_type === 'all') {
-    $breakdown_records = getBreakdownRecords($conn, $start_date, $end_date);
+    $breakdown_records = getBreakdownRecords($conn, $start_date, $end_date, $user_id, $role_id);
 }
 ?>
 

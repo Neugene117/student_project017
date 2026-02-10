@@ -488,6 +488,9 @@
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
 }
+ a{
+    text-decoration: none;
+}
 
 .action-btn {
     display: flex;
@@ -503,6 +506,7 @@
     color: var(--gray-700);
     font-size: 14px;
     font-weight: 500;
+    text-decoration: none;
 }
 
 .action-btn i {
