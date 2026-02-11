@@ -43,7 +43,7 @@ $role_id = $_SESSION['role_id'];
 $start_date = $_GET['start_date'] ?? date('Y-m-01'); // First day of current month
 $end_date = $_GET['end_date'] ?? date('Y-m-t'); // Last day of current month
 $report_type = $_GET['report_type'] ?? 'daily';
-$filter_type = $_GET['filter_type'] ?? 'all'; // all, maintenance, breakdown, equipment
+$filter_type = $_GET['filter_type'] ?? 'all';
 
 // Determine active tab
 $active_tab = $_GET['active_tab'] ?? 'maintenance-tab';
@@ -52,9 +52,28 @@ if (!in_array($active_tab, $valid_tabs)) {
     $active_tab = 'maintenance-tab';
 }
 
-// Validate dates
-$start_date = date('Y-m-d', strtotime($start_date));
-$end_date = date('Y-m-d', strtotime($end_date));
+// Validate filter values
+$valid_report_types = ['daily', 'yearly'];
+$valid_filter_types = ['all', 'maintenance', 'breakdown'];
+if (!in_array($report_type, $valid_report_types, true)) {
+    $report_type = 'daily';
+}
+if (!in_array($filter_type, $valid_filter_types, true)) {
+    $filter_type = 'all';
+}
+
+// Validate dates strictly to avoid invalid input becoming 1970-01-01
+$parsed_start = DateTime::createFromFormat('Y-m-d', (string)$start_date);
+$parsed_end = DateTime::createFromFormat('Y-m-d', (string)$end_date);
+$start_date = ($parsed_start && $parsed_start->format('Y-m-d') === $start_date) ? $start_date : date('Y-m-01');
+$end_date = ($parsed_end && $parsed_end->format('Y-m-d') === $end_date) ? $end_date : date('Y-m-t');
+
+// Keep date range valid for all filters
+if ($start_date > $end_date) {
+    $tmp = $start_date;
+    $start_date = $end_date;
+    $end_date = $tmp;
+}
 
 // Function to get maintenance statistics
 function getMaintenanceStats($conn, $start_date, $end_date, $user_id, $role_id) {
@@ -484,7 +503,7 @@ if ($filter_type === 'breakdown' || $filter_type === 'all') {
                                     <td><?php echo htmlspecialchars($record['maintenance_type']); ?></td>
                                     <td><?php echo $record['completed_date'] ? date('M d, Y H:i', strtotime($record['completed_date'])) : 'Not completed'; ?></td>
                                     <td><?php echo htmlspecialchars($record['firstname'] . ' ' . $record['lastname']); ?></td>
-                                    <td>$<?php echo number_format($record['cost'], 2); ?></td>
+                                    <td><?php echo number_format($record['cost'], 2); ?> RWF</td>
                                     <td>
                                         <?php 
                                         $status_class = 'secondary';
@@ -614,7 +633,7 @@ if ($filter_type === 'breakdown' || $filter_type === 'all') {
                                     <td><?php echo date('M d, Y', strtotime($row['report_date'])); ?></td>
                                     <td><?php echo $row['total_count']; ?></td>
                                     <td><span class="badge badge-success"><?php echo $row['completed_count']; ?></span></td>
-                                    <td>$<?php echo number_format($row['daily_cost'], 2); ?></td>
+                                    <td><?php echo number_format($row['daily_cost'], 2); ?> RWF</td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>

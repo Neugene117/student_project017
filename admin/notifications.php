@@ -13,19 +13,32 @@ include('../config/db.php');
 
 // Get user ID from session
 $user_id = $_SESSION['user_id'] ?? null;
+$role_id = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : 0;
+$can_delete_notifications = ($role_id !== 2); // Technician (role 2) cannot delete notifications
 
 // Handle notification deletion
 if (isset($_POST['delete_notification'])) {
+    if (!$can_delete_notifications) {
+        $_SESSION['error_message'] = "You are not allowed to delete notifications";
+        header("Location: notifications.php");
+        exit();
+    }
+
     $notification_id = intval($_POST['notification_id']);
-    // Only allow deletion if the notification belongs to the user
-    $delete_query = "DELETE FROM notification WHERE notification_id = '$notification_id' AND user_id = '$user_id'";
-    
-    if (mysqli_query($conn, $delete_query)) {
-        if (mysqli_affected_rows($conn) > 0) {
+    // Only allow deletion if the notification belongs to the current user
+    $delete_query = "DELETE FROM notification WHERE notification_id = ? AND user_id = ?";
+    $stmt = mysqli_prepare($conn, $delete_query);
+
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, "ii", $notification_id, $user_id);
+        mysqli_stmt_execute($stmt);
+
+        if (mysqli_stmt_affected_rows($stmt) > 0) {
             $_SESSION['success_message'] = "Notification deleted successfully";
         } else {
             $_SESSION['error_message'] = "Notification not found or access denied";
         }
+        mysqli_stmt_close($stmt);
     } else {
         $_SESSION['error_message'] = "Failed to delete notification";
     }
@@ -219,11 +232,13 @@ foreach ($notifications as $notification) {
                                             </button>
                                         </form>
                                     <?php endif; ?>
-                                    <button type="button" class="notification-btn delete" 
-                                            onclick="confirmDelete(<?php echo $notification['notification_id']; ?>)" 
-                                            title="Delete notification">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
+                                    <?php if ($can_delete_notifications): ?>
+                                        <button type="button" class="notification-btn delete" 
+                                                onclick="confirmDelete(<?php echo $notification['notification_id']; ?>)" 
+                                                title="Delete notification">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php endforeach; ?>

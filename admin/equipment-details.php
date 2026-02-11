@@ -474,7 +474,7 @@ if ($stmt) {
                                         <?php echo htmlspecialchars($record['statuss']); ?>
                                     </span>
                                 </td>
-                                <td><?php echo !empty($record['cost']) ? '$' . number_format($record['cost'], 2) : 'N/A'; ?></td>
+                                <td><?php echo !empty($record['cost']) ?  number_format($record['cost'], 2) : 'N/A'; ?> RWF</td>
                                 <td><?php echo htmlspecialchars($record['description'] ?? 'N/A'); ?></td>
                                 <td><?php echo htmlspecialchars($record['username'] ?? 'N/A'); ?></td>
                             </tr>

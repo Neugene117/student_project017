@@ -97,20 +97,38 @@ if (maintenanceCtx && window.Chart) {
     maintenanceGradient.addColorStop(0, 'rgba(37, 99, 235, 0.2)');
     maintenanceGradient.addColorStop(1, 'rgba(37, 99, 235, 0.01)');
 
-    // Use global variables if available, otherwise default to empty
-    const labels = (typeof maintenanceDates !== 'undefined') ? maintenanceDates : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const completedData = (typeof maintenanceCompleted !== 'undefined') ? maintenanceCompleted : [0, 0, 0, 0, 0, 0, 0];
-    const scheduledData = (typeof maintenanceScheduled !== 'undefined') ? maintenanceScheduled : [0, 0, 0, 0, 0, 0, 0];
-    const overdueData = (typeof maintenanceOverdue !== 'undefined') ? maintenanceOverdue : [0, 0, 0, 0, 0, 0, 0];
+    const fallbackDataset = {
+        labels: (typeof maintenanceDates !== 'undefined') ? maintenanceDates : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        completed: (typeof maintenanceCompleted !== 'undefined') ? maintenanceCompleted : [0, 0, 0, 0, 0, 0, 0],
+        scheduled: (typeof maintenanceScheduled !== 'undefined') ? maintenanceScheduled : [0, 0, 0, 0, 0, 0, 0],
+        overdue: (typeof maintenanceOverdue !== 'undefined') ? maintenanceOverdue : [0, 0, 0, 0, 0, 0, 0],
+    };
+    const allMaintenanceDatasets = (typeof maintenanceDatasets !== 'undefined' && maintenanceDatasets) ? maintenanceDatasets : {};
+    const initialPeriod = (typeof maintenancePeriod !== 'undefined' && maintenancePeriod) ? maintenancePeriod : 'weekly';
+
+    function getMaintenanceDataset(period) {
+        const selected = allMaintenanceDatasets[period];
+        if (!selected || !Array.isArray(selected.labels)) {
+            return fallbackDataset;
+        }
+        return {
+            labels: Array.isArray(selected.labels) ? selected.labels : fallbackDataset.labels,
+            completed: Array.isArray(selected.completed) ? selected.completed : fallbackDataset.completed,
+            scheduled: Array.isArray(selected.scheduled) ? selected.scheduled : fallbackDataset.scheduled,
+            overdue: Array.isArray(selected.overdue) ? selected.overdue : fallbackDataset.overdue,
+        };
+    }
+
+    const initialDataset = getMaintenanceDataset(initialPeriod);
 
     maintenanceChart = new Chart(maintenanceCtx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels: initialDataset.labels,
             datasets: [
                 {
                     label: 'Completed',
-                    data: completedData,
+                    data: initialDataset.completed,
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     borderWidth: 3,
@@ -124,7 +142,7 @@ if (maintenanceCtx && window.Chart) {
                 },
                 {
                     label: 'Scheduled',
-                    data: scheduledData,
+                    data: initialDataset.scheduled,
                     borderColor: '#f59e0b',
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
                     borderWidth: 3,
@@ -138,7 +156,7 @@ if (maintenanceCtx && window.Chart) {
                 },
                 {
                     label: 'Overdue',
-                    data: overdueData,
+                    data: initialDataset.overdue,
                     borderColor: '#ef4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     borderWidth: 3,
@@ -219,6 +237,20 @@ if (maintenanceCtx && window.Chart) {
             }
         }
     });
+
+    const chartFilter = document.querySelector('.chart-filter');
+    if (chartFilter) {
+        chartFilter.value = initialPeriod;
+        chartFilter.addEventListener('change', (e) => {
+            const selectedPeriod = e.target.value;
+            const nextDataset = getMaintenanceDataset(selectedPeriod);
+            maintenanceChart.data.labels = nextDataset.labels;
+            maintenanceChart.data.datasets[0].data = nextDataset.completed;
+            maintenanceChart.data.datasets[1].data = nextDataset.scheduled;
+            maintenanceChart.data.datasets[2].data = nextDataset.overdue;
+            maintenanceChart.update();
+        });
+    }
 }
 
 // Equipment Status Doughnut Chart
@@ -471,18 +503,6 @@ alertItems.forEach(item => {
         showNotification(`Viewing: ${title}`);
     });
 });
-
-// Chart filter functionality
-const chartFilter = document.querySelector('.chart-filter');
-if (chartFilter) {
-    chartFilter.addEventListener('change', (e) => {
-        const period = e.target.value;
-        showNotification(`Updating chart for: ${period}`);
-        
-        // You can update the chart data based on the selected period
-        // For now, we'll just show a notification
-    });
-}
 
 // System status real-time updates simulation
 function updateSystemStatus() {

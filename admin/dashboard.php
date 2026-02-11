@@ -11,55 +11,110 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 // Database connection
 require_once '../config/db.php';
 
+$user_id = (int)($_SESSION['user_id'] ?? 0);
+$role_id = (int)($_SESSION['role_id'] ?? 0);
+$is_admin = ($role_id === 1);
+
 // --- Fetch Stats Cards ---
 
-// Total Equipment
-$sql = "SELECT COUNT(*) as count FROM equipment";
+// Total / Assigned Equipment
+if ($is_admin) {
+    $sql = "SELECT COUNT(*) as count FROM equipment";
+} else {
+    $sql = "SELECT COUNT(DISTINCT equipment_id) as count FROM maintenance_schedule WHERE assigned_to_user_id = '$user_id'";
+}
 $result = mysqli_query($conn, $sql);
-$total_equipment = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+$total_equipment = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
+$equipment_card_label = $is_admin ? 'Total Equipment' : 'Total Assigned Equipment';
 
 // Active Maintenance (Status is not Completed/Done/Finished)
-$sql = "SELECT COUNT(*) as count FROM maintenance WHERE statuss NOT IN ('Completed', 'Done', 'Finished', 'Cancelled')";
+if ($is_admin) {
+    $sql = "SELECT COUNT(*) as count FROM maintenance WHERE statuss NOT IN ('Completed', 'Done', 'Finished', 'Cancelled')";
+} else {
+    $sql = "SELECT COUNT(*) as count 
+            FROM maintenance m
+            WHERE m.statuss NOT IN ('Completed', 'Done', 'Finished', 'Cancelled')
+              AND (
+                    m.user_id = '$user_id'
+                    OR EXISTS (
+                        SELECT 1
+                        FROM maintenance_schedule ms
+                        WHERE ms.equipment_id = m.equipment_id
+                          AND ms.assigned_to_user_id = '$user_id'
+                    )
+              )";
+}
 $result = mysqli_query($conn, $sql);
-$active_maintenance = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+$active_maintenance = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
 
 // Active Breakdowns (Status is not Fixed/Resolved/Closed)
-$sql = "SELECT COUNT(*) as count FROM breakdown WHERE statuss NOT IN ('Fixed', 'Resolved', 'Closed')";
+if ($is_admin) {
+    $sql = "SELECT COUNT(*) as count FROM breakdown WHERE statuss NOT IN ('Fixed', 'Resolved', 'Closed')";
+} else {
+    $sql = "SELECT COUNT(*) as count 
+            FROM breakdown b
+            WHERE b.statuss NOT IN ('Fixed', 'Resolved', 'Closed')
+              AND (
+                    b.reported_by_user_id = '$user_id'
+                    OR EXISTS (
+                        SELECT 1
+                        FROM maintenance_schedule ms
+                        WHERE ms.equipment_id = b.equipment_id
+                          AND ms.assigned_to_user_id = '$user_id'
+                    )
+              )";
+}
 $result = mysqli_query($conn, $sql);
-$active_breakdowns = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+$active_breakdowns = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
 
 // System Users
-$sql = "SELECT COUNT(*) as count FROM users";
-$result = mysqli_query($conn, $sql);
-$system_users = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+$system_users = 0;
+if ($is_admin) {
+    $sql = "SELECT COUNT(*) as count FROM users";
+    $result = mysqli_query($conn, $sql);
+    $system_users = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
+}
 
 // --- Secondary Stats ---
+$total_categories = 0;
+$total_locations = 0;
+$total_schedules = 0;
+$completed_today = 0;
+if ($is_admin) {
+    // Categories
+    $sql = "SELECT COUNT(*) as count FROM category";
+    $result = mysqli_query($conn, $sql);
+    $total_categories = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
 
-// Categories
-$sql = "SELECT COUNT(*) as count FROM category";
-$result = mysqli_query($conn, $sql);
-$total_categories = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+    // Locations
+    $sql = "SELECT COUNT(*) as count FROM equipment_location";
+    $result = mysqli_query($conn, $sql);
+    $total_locations = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
 
-// Locations
-$sql = "SELECT COUNT(*) as count FROM equipment_location";
-$result = mysqli_query($conn, $sql);
-$total_locations = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+    // Schedules
+    $sql = "SELECT COUNT(*) as count FROM maintenance_schedule";
+    $result = mysqli_query($conn, $sql);
+    $total_schedules = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
 
-// Schedules
-$sql = "SELECT COUNT(*) as count FROM maintenance_schedule";
-$result = mysqli_query($conn, $sql);
-$total_schedules = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
-
-// Completed Today
-$today = date('Y-m-d');
-$sql = "SELECT COUNT(*) as count FROM maintenance WHERE DATE(completed_date) = '$today' AND statuss = 'Completed'";
-$result = mysqli_query($conn, $sql);
-$completed_today = ($result) ? mysqli_fetch_assoc($result)['count'] : 0;
+    // Completed Today
+    $today = date('Y-m-d');
+    $sql = "SELECT COUNT(*) as count FROM maintenance WHERE DATE(completed_date) = '$today' AND statuss = 'Completed'";
+    $result = mysqli_query($conn, $sql);
+    $completed_today = ($result) ? (int)mysqli_fetch_assoc($result)['count'] : 0;
+}
 
 // --- Charts Data ---
 
 // Equipment Status
-$sql = "SELECT statuss, COUNT(*) as count FROM equipment GROUP BY statuss";
+if ($is_admin) {
+    $sql = "SELECT statuss, COUNT(*) as count FROM equipment GROUP BY statuss";
+} else {
+    $sql = "SELECT e.statuss, COUNT(DISTINCT e.id) as count
+            FROM equipment e
+            INNER JOIN maintenance_schedule ms ON ms.equipment_id = e.id
+            WHERE ms.assigned_to_user_id = '$user_id'
+            GROUP BY e.statuss";
+}
 $result = mysqli_query($conn, $sql);
 $status_counts = ['Operational' => 0, 'Under Maintenance' => 0, 'Broken Down' => 0, 'Inactive' => 0]; // Default keys
 
@@ -87,44 +142,144 @@ $equipment_chart_json = json_encode(array_values($status_counts));
 $equipment_labels_json = json_encode(array_keys($status_counts));
 
 
-// Maintenance Overview (Last 7 Days)
-$dates = [];
-$completed_counts = [];
-$scheduled_counts = [];
-$overdue_counts = [];
-
-for ($i = 6; $i >= 0; $i--) {
-    $date = date('Y-m-d', strtotime("-$i days"));
-    $day_label = date('D', strtotime("-$i days")); // Mon, Tue...
-    $dates[] = $day_label;
-    
-    // Completed - Check for various completion statuses
-    $sql = "SELECT COUNT(*) as count FROM maintenance WHERE DATE(completed_date) = '$date' AND statuss IN ('Completed', 'Done', 'Finished')";
-    $res = mysqli_query($conn, $sql);
-    $completed_counts[] = ($res) ? mysqli_fetch_assoc($res)['count'] : 0;
-    
-    // Scheduled (Start date is today)
-    $sql = "SELECT COUNT(*) as count FROM maintenance_schedule WHERE DATE(start_date) = '$date'";
-    $res = mysqli_query($conn, $sql);
-    $scheduled_counts[] = ($res) ? mysqli_fetch_assoc($res)['count'] : 0;
-    
-    // Overdue/Backlog - Active maintenance requests created on or before this date
-    $sql = "SELECT COUNT(*) as count FROM maintenance WHERE DATE(created_at) <= '$date' AND statuss NOT IN ('Completed', 'Done', 'Finished', 'Cancelled')";
-    $res = mysqli_query($conn, $sql);
-    $overdue_counts[] = ($res) ? mysqli_fetch_assoc($res)['count'] : 0;
+// Maintenance Overview (Daily / Weekly / Monthly)
+$chart_period = $_GET['chart_period'] ?? 'weekly';
+$valid_chart_periods = ['daily', 'weekly', 'monthly'];
+if (!in_array($chart_period, $valid_chart_periods, true)) {
+    $chart_period = 'weekly';
 }
 
-$maintenance_dates_json = json_encode($dates);
-$maintenance_completed_json = json_encode($completed_counts);
-$maintenance_scheduled_json = json_encode($scheduled_counts);
-$maintenance_overdue_json = json_encode($overdue_counts);
+function getMaintenanceOverviewData($conn, $period, $is_admin, $user_id) {
+    $labels = [];
+    $completed_counts = [];
+    $scheduled_counts = [];
+    $overdue_counts = [];
+
+    $time_slots = [];
+    if ($period === 'daily') {
+        // Last 24 hours, grouped hourly
+        for ($i = 23; $i >= 0; $i--) {
+            $start = strtotime("-$i hours");
+            $end = strtotime('+1 hour', $start);
+            $time_slots[] = [
+                'label' => date('H:00', $start),
+                'start' => date('Y-m-d H:i:s', $start),
+                'end' => date('Y-m-d H:i:s', $end)
+            ];
+        }
+    } elseif ($period === 'monthly') {
+        // Current month, grouped by day
+        $days_in_month = (int)date('t');
+        $current_ym = date('Y-m');
+        for ($day = 1; $day <= $days_in_month; $day++) {
+            $day_str = str_pad((string)$day, 2, '0', STR_PAD_LEFT);
+            $start = strtotime($current_ym . '-' . $day_str . ' 00:00:00');
+            $end = strtotime('+1 day', $start);
+            $time_slots[] = [
+                'label' => (string)$day,
+                'start' => date('Y-m-d H:i:s', $start),
+                'end' => date('Y-m-d H:i:s', $end)
+            ];
+        }
+    } else {
+        // Last 7 days, grouped by day
+        for ($i = 6; $i >= 0; $i--) {
+            $start = strtotime(date('Y-m-d 00:00:00', strtotime("-$i days")));
+            $end = strtotime('+1 day', $start);
+            $time_slots[] = [
+                'label' => date('D', $start),
+                'start' => date('Y-m-d H:i:s', $start),
+                'end' => date('Y-m-d H:i:s', $end)
+            ];
+        }
+    }
+
+    foreach ($time_slots as $slot) {
+        $labels[] = $slot['label'];
+
+        // Completed
+        $sql = "SELECT COUNT(*) as count 
+                FROM maintenance 
+                WHERE completed_date >= '{$slot['start']}' 
+                AND completed_date < '{$slot['end']}' 
+                AND statuss IN ('Completed', 'Done', 'Finished')";
+        if (!$is_admin) {
+            $sql .= " AND (
+                        user_id = '$user_id'
+                        OR EXISTS (
+                            SELECT 1
+                            FROM maintenance_schedule ms
+                            WHERE ms.equipment_id = maintenance.equipment_id
+                              AND ms.assigned_to_user_id = '$user_id'
+                        )
+                      )";
+        }
+        $res = mysqli_query($conn, $sql);
+        $completed_counts[] = ($res) ? (int)mysqli_fetch_assoc($res)['count'] : 0;
+
+        // Scheduled
+        $sql = "SELECT COUNT(*) as count 
+                FROM maintenance_schedule 
+                WHERE start_date >= '{$slot['start']}' 
+                AND start_date < '{$slot['end']}'";
+        if (!$is_admin) {
+            $sql .= " AND assigned_to_user_id = '$user_id'";
+        }
+        $res = mysqli_query($conn, $sql);
+        $scheduled_counts[] = ($res) ? (int)mysqli_fetch_assoc($res)['count'] : 0;
+
+        // Overdue/Backlog as of the end of the slot
+        $sql = "SELECT COUNT(*) as count 
+                FROM maintenance 
+                WHERE created_at < '{$slot['end']}' 
+                AND statuss NOT IN ('Completed', 'Done', 'Finished', 'Cancelled')";
+        if (!$is_admin) {
+            $sql .= " AND (
+                        user_id = '$user_id'
+                        OR EXISTS (
+                            SELECT 1
+                            FROM maintenance_schedule ms
+                            WHERE ms.equipment_id = maintenance.equipment_id
+                              AND ms.assigned_to_user_id = '$user_id'
+                        )
+                      )";
+        }
+        $res = mysqli_query($conn, $sql);
+        $overdue_counts[] = ($res) ? (int)mysqli_fetch_assoc($res)['count'] : 0;
+    }
+
+    return [
+        'labels' => $labels,
+        'completed' => $completed_counts,
+        'scheduled' => $scheduled_counts,
+        'overdue' => $overdue_counts
+    ];
+}
+
+$maintenance_overview_data = [
+    'daily' => getMaintenanceOverviewData($conn, 'daily', $is_admin, $user_id),
+    'weekly' => getMaintenanceOverviewData($conn, 'weekly', $is_admin, $user_id),
+    'monthly' => getMaintenanceOverviewData($conn, 'monthly', $is_admin, $user_id)
+];
+
+$selected_overview = $maintenance_overview_data[$chart_period];
+$maintenance_dates_json = json_encode($selected_overview['labels']);
+$maintenance_completed_json = json_encode($selected_overview['completed']);
+$maintenance_scheduled_json = json_encode($selected_overview['scheduled']);
+$maintenance_overdue_json = json_encode($selected_overview['overdue']);
+$maintenance_overview_json = json_encode($maintenance_overview_data);
+$maintenance_period_json = json_encode($chart_period);
 
 
 // --- Recent Activities ---
 $recent_activities = [];
 
 // Fetch latest from Notification table
-$sql = "SELECT * FROM notification ORDER BY created_at DESC LIMIT 5";
+if ($is_admin) {
+    $sql = "SELECT * FROM notification ORDER BY created_at DESC LIMIT 5";
+} else {
+    $sql = "SELECT * FROM notification WHERE user_id = '$user_id' OR user_id IS NULL ORDER BY created_at DESC LIMIT 5";
+}
 $result = mysqli_query($conn, $sql);
 if ($result) {
     while ($row = mysqli_fetch_assoc($result)) {
@@ -135,7 +290,20 @@ if ($result) {
 // If no notifications, fetch latest breakdowns and maintenance
 if (empty($recent_activities)) {
     // Fetch latest breakdowns
-    $sql = "SELECT 'breakdown' as type, issue_description as message, create_at as created_at FROM breakdown ORDER BY create_at DESC LIMIT 3";
+    if ($is_admin) {
+        $sql = "SELECT 'breakdown' as type, issue_description as message, create_at as created_at FROM breakdown ORDER BY create_at DESC LIMIT 3";
+    } else {
+        $sql = "SELECT 'breakdown' as type, b.issue_description as message, b.create_at as created_at
+                FROM breakdown b
+                WHERE b.reported_by_user_id = '$user_id'
+                   OR EXISTS (
+                        SELECT 1
+                        FROM maintenance_schedule ms
+                        WHERE ms.equipment_id = b.equipment_id
+                          AND ms.assigned_to_user_id = '$user_id'
+                   )
+                ORDER BY b.create_at DESC LIMIT 3";
+    }
     $res = mysqli_query($conn, $sql);
     if ($res) {
         while ($row = mysqli_fetch_assoc($res)) {
@@ -144,7 +312,23 @@ if (empty($recent_activities)) {
     }
     
     // Fetch latest maintenance
-    $sql = "SELECT 'maintenance' as type, description as message, completed_date as created_at FROM maintenance WHERE completed_date IS NOT NULL ORDER BY completed_date DESC LIMIT 3";
+    if ($is_admin) {
+        $sql = "SELECT 'maintenance' as type, description as message, completed_date as created_at FROM maintenance WHERE completed_date IS NOT NULL ORDER BY completed_date DESC LIMIT 3";
+    } else {
+        $sql = "SELECT 'maintenance' as type, m.description as message, m.completed_date as created_at
+                FROM maintenance m
+                WHERE m.completed_date IS NOT NULL
+                  AND (
+                        m.user_id = '$user_id'
+                        OR EXISTS (
+                            SELECT 1
+                            FROM maintenance_schedule ms
+                            WHERE ms.equipment_id = m.equipment_id
+                              AND ms.assigned_to_user_id = '$user_id'
+                        )
+                  )
+                ORDER BY m.completed_date DESC LIMIT 3";
+    }
     $res = mysqli_query($conn, $sql);
     if ($res) {
         while ($row = mysqli_fetch_assoc($res)) {
@@ -163,7 +347,24 @@ if (empty($recent_activities)) {
 $alerts = [];
 
 // High Priority Breakdowns
-$sql = "SELECT * FROM breakdown WHERE priority = 'High' AND statuss NOT IN ('Fixed', 'Resolved') LIMIT 3";
+if ($is_admin) {
+    $sql = "SELECT * FROM breakdown WHERE priority = 'High' AND statuss NOT IN ('Fixed', 'Resolved') LIMIT 3";
+} else {
+    $sql = "SELECT b.*
+            FROM breakdown b
+            WHERE b.priority = 'High'
+              AND b.statuss NOT IN ('Fixed', 'Resolved')
+              AND (
+                    b.reported_by_user_id = '$user_id'
+                    OR EXISTS (
+                        SELECT 1
+                        FROM maintenance_schedule ms
+                        WHERE ms.equipment_id = b.equipment_id
+                          AND ms.assigned_to_user_id = '$user_id'
+                    )
+              )
+            LIMIT 3";
+}
 $result = mysqli_query($conn, $sql);
 if ($result) {
     while ($row = mysqli_fetch_assoc($result)) {
@@ -177,7 +378,17 @@ if ($result) {
 }
 
 // Warranty Expiring (Next 30 days)
-$sql = "SELECT * FROM equipment WHERE expired_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY) LIMIT 3";
+if ($is_admin) {
+    $sql = "SELECT * FROM equipment WHERE expired_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY) LIMIT 3";
+} else {
+    $sql = "SELECT e.*
+            FROM equipment e
+            INNER JOIN maintenance_schedule ms ON ms.equipment_id = e.id
+            WHERE ms.assigned_to_user_id = '$user_id'
+              AND e.expired_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)
+            GROUP BY e.id
+            LIMIT 3";
+}
 $result = mysqli_query($conn, $sql);
 if ($result) {
     while ($row = mysqli_fetch_assoc($result)) {
@@ -192,17 +403,19 @@ if ($result) {
 
 // --- Top Performing Technicians ---
 $top_technicians = [];
-$sql = "SELECT u.firstname, u.lastname, u.user_id, COUNT(m.mid) as completed_count 
-        FROM users u 
-        JOIN maintenance m ON u.user_id = m.user_id 
-        WHERE m.statuss = 'Completed' 
-        GROUP BY u.user_id 
-        ORDER BY completed_count DESC 
-        LIMIT 5";
-$result = mysqli_query($conn, $sql);
-if ($result) {
-    while ($row = mysqli_fetch_assoc($result)) {
-        $top_technicians[] = $row;
+if ($is_admin) {
+    $sql = "SELECT u.firstname, u.lastname, u.user_id, COUNT(m.mid) as completed_count 
+            FROM users u 
+            JOIN maintenance m ON u.user_id = m.user_id 
+            WHERE m.statuss = 'Completed' 
+            GROUP BY u.user_id 
+            ORDER BY completed_count DESC 
+            LIMIT 5";
+    $result = mysqli_query($conn, $sql);
+    if ($result) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $top_technicians[] = $row;
+        }
     }
 }
 
@@ -237,7 +450,7 @@ if ($result) {
                     </div>
                     <div class="stat-info">
                         <h3 class="stat-value"><?php echo $total_equipment; ?></h3>
-                        <p class="stat-label">Total Equipment</p>
+                        <p class="stat-label"><?php echo htmlspecialchars($equipment_card_label); ?></p>
                     </div>
                     <div class="stat-trend positive">
                         <i class="fas fa-arrow-up"></i> Active
@@ -270,62 +483,66 @@ if ($result) {
                     </div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-icon users">
-                        <i class="fas fa-users"></i>
+                <?php if ($is_admin): ?>
+                    <div class="stat-card">
+                        <div class="stat-icon users">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value"><?php echo $system_users; ?></h3>
+                            <p class="stat-label">System Users</p>
+                        </div>
+                        <div class="stat-trend positive">
+                            <i class="fas fa-user-check"></i> Registered
+                        </div>
                     </div>
-                    <div class="stat-info">
-                        <h3 class="stat-value"><?php echo $system_users; ?></h3>
-                        <p class="stat-label">System Users</p>
-                    </div>
-                    <div class="stat-trend positive">
-                        <i class="fas fa-user-check"></i> Registered
-                    </div>
-                </div>
+                <?php endif; ?>
             </div>
 
-            <!-- Additional Stats Row -->
-            <div class="stats-grid secondary-stats">
-                <div class="stat-card small">
-                    <div class="stat-icon-small categories">
-                        <i class="fas fa-layer-group"></i>
+            <?php if ($is_admin): ?>
+                <!-- Additional Stats Row -->
+                <div class="stats-grid secondary-stats">
+                    <div class="stat-card small">
+                        <div class="stat-icon-small categories">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value"><?php echo $total_categories; ?></h3>
+                            <p class="stat-label">Categories</p>
+                        </div>
                     </div>
-                    <div class="stat-info">
-                        <h3 class="stat-value"><?php echo $total_categories; ?></h3>
-                        <p class="stat-label">Categories</p>
-                    </div>
-                </div>
 
-                <div class="stat-card small">
-                    <div class="stat-icon-small locations">
-                        <i class="fas fa-map-marker-alt"></i>
+                    <div class="stat-card small">
+                        <div class="stat-icon-small locations">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value"><?php echo $total_locations; ?></h3>
+                            <p class="stat-label">Locations</p>
+                        </div>
                     </div>
-                    <div class="stat-info">
-                        <h3 class="stat-value"><?php echo $total_locations; ?></h3>
-                        <p class="stat-label">Locations</p>
-                    </div>
-                </div>
 
-                <div class="stat-card small">
-                    <div class="stat-icon-small schedules">
-                        <i class="fas fa-calendar-check"></i>
+                    <div class="stat-card small">
+                        <div class="stat-icon-small schedules">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value"><?php echo $total_schedules; ?></h3>
+                            <p class="stat-label">Schedules</p>
+                        </div>
                     </div>
-                    <div class="stat-info">
-                        <h3 class="stat-value"><?php echo $total_schedules; ?></h3>
-                        <p class="stat-label">Schedules</p>
-                    </div>
-                </div>
 
-                <div class="stat-card small">
-                    <div class="stat-icon-small completed">
-                        <i class="fas fa-check-double"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 class="stat-value"><?php echo $completed_today; ?></h3>
-                        <p class="stat-label">Completed Today</p>
+                    <div class="stat-card small">
+                        <div class="stat-icon-small completed">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 class="stat-value"><?php echo $completed_today; ?></h3>
+                            <p class="stat-label">Completed Today</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            <?php endif; ?>
 
             <!-- Content Grid -->
             <div class="content-grid">
@@ -334,8 +551,10 @@ if ($result) {
                     <div class="card-header">
                         <h3><i class="fas fa-chart-line"></i> Maintenance Overview</h3>
                         <div class="card-actions">
-                            <select class="chart-filter">
-                                <option>Last 7 Days</option>
+                            <select class="chart-filter" id="maintenance-period-filter">
+                                <option value="daily" <?php echo $chart_period === 'daily' ? 'selected' : ''; ?>>Daily</option>
+                                <option value="weekly" <?php echo $chart_period === 'weekly' ? 'selected' : ''; ?>>Weekly</option>
+                                <option value="monthly" <?php echo $chart_period === 'monthly' ? 'selected' : ''; ?>>Monthly</option>
                             </select>
                             <button class="icon-btn">
                                 <i class="fas fa-sync-alt"></i>
@@ -457,59 +676,80 @@ if ($result) {
                     </div>
                     <div class="card-body">
                         <div class="quick-actions">
-                            <a href="equipment.php" class="action-btn">
-                                <i class="fas fa-plus-circle"></i>
-                                <span>Add Equipment</span>
-                            </a>
-                            <a href="schedules.php" class="action-btn">
-                                <i class="fas fa-wrench"></i>
-                                <span>Schedule Maintenance</span>
-                            </a>
-                            <a href="breakdowns.php" class="action-btn">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <span>Report Breakdown</span>
-                            </a>
-                            <a href="users.php" class="action-btn">
-                                <i class="fas fa-user-plus"></i>
-                                <span>Add User</span>
-                            </a>
-                            <a href="categories.php" class="action-btn">
-                                <i class="fas fa-layer-group"></i>
-                                <span>Add Category</span>
-                            </a>
-                            <a href="equipment_location.php" class="action-btn">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span>Add Location</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Top Technicians -->
-                <div class="card top-technicians-card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-user-cog"></i> Top Technicians</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="activity-list">
-                            <?php if (empty($top_technicians)): ?>
-                                <p class="activity-text" style="padding: 10px;">No data available.</p>
+                            <?php if ($is_admin): ?>
+                                <a href="equipment.php" class="action-btn">
+                                    <i class="fas fa-plus-circle"></i>
+                                    <span>Add Equipment</span>
+                                </a>
+                                <a href="schedules.php" class="action-btn">
+                                    <i class="fas fa-wrench"></i>
+                                    <span>Schedule Maintenance</span>
+                                </a>
+                                <a href="breakdowns.php" class="action-btn">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>Report Breakdown</span>
+                                </a>
+                                <a href="users.php" class="action-btn">
+                                    <i class="fas fa-user-plus"></i>
+                                    <span>Add User</span>
+                                </a>
+                                <a href="categories.php" class="action-btn">
+                                    <i class="fas fa-layer-group"></i>
+                                    <span>Add Category</span>
+                                </a>
+                                <a href="equipment_location.php" class="action-btn">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>Add Location</span>
+                                </a>
                             <?php else: ?>
-                                <?php foreach ($top_technicians as $tech): ?>
-                                    <div class="activity-item">
-                                        <div class="activity-icon user">
-                                            <i class="fas fa-user-check"></i>
-                                        </div>
-                                        <div class="activity-content">
-                                            <p class="activity-text"><strong><?php echo htmlspecialchars($tech['firstname'] . ' ' . $tech['lastname']); ?></strong></p>
-                                            <span class="activity-time"><?php echo $tech['completed_count']; ?> Tasks Completed</span>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
+                                <a href="schedules_technician.php" class="action-btn">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <span>My Schedules</span>
+                                </a>
+                                <a href="breakdowns.php" class="action-btn">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>Report Breakdown</span>
+                                </a>
+                                <a href="notifications.php" class="action-btn">
+                                    <i class="fas fa-bell"></i>
+                                    <span>View Notifications</span>
+                                </a>
+                                <a href="profile.php" class="action-btn">
+                                    <i class="fas fa-user"></i>
+                                    <span>My Profile</span>
+                                </a>
                             <?php endif; ?>
                         </div>
                     </div>
                 </div>
+
+                <?php if ($is_admin): ?>
+                    <!-- Top Technicians -->
+                    <div class="card top-technicians-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-user-cog"></i> Top Technicians</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="activity-list">
+                                <?php if (empty($top_technicians)): ?>
+                                    <p class="activity-text" style="padding: 10px;">No data available.</p>
+                                <?php else: ?>
+                                    <?php foreach ($top_technicians as $tech): ?>
+                                        <div class="activity-item">
+                                            <div class="activity-icon user">
+                                                <i class="fas fa-user-check"></i>
+                                            </div>
+                                            <div class="activity-content">
+                                                <p class="activity-text"><strong><?php echo htmlspecialchars($tech['firstname'] . ' ' . $tech['lastname']); ?></strong></p>
+                                                <span class="activity-time"><?php echo $tech['completed_count']; ?> Tasks Completed</span>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </main>
@@ -524,6 +764,8 @@ if ($result) {
         var maintenanceCompleted = <?php echo $maintenance_completed_json; ?>;
         var maintenanceScheduled = <?php echo $maintenance_scheduled_json; ?>;
         var maintenanceOverdue = <?php echo $maintenance_overdue_json; ?>;
+        var maintenanceDatasets = <?php echo $maintenance_overview_json; ?>;
+        var maintenancePeriod = <?php echo $maintenance_period_json; ?>;
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

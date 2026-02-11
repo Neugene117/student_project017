@@ -219,7 +219,7 @@ if (isset($_POST['trigger_due_alert']) && isset($_POST['schedule_id'])) {
 }
 
 // Configuration
-$admin_email = 'fabrdaa@gmail.com';
+$admin_email = 'nendayishimiye@gmail.com';
 $admin_name = 'Admin';
 
 // Handle Maintenance Submission
@@ -305,7 +305,7 @@ if (isset($_POST['submit_maintenance'])) {
                         </tr>
                         <tr>
                             <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Cost:</td>
-                            <td style='padding: 8px 0; color: #111827; font-weight: 500;'>$" . htmlspecialchars(number_format($cost, 2)) . "</td>
+                            <td style='padding: 8px 0; color: #111827; font-weight: 500;'>" . htmlspecialchars(number_format($cost, 2)) . " RWF</td>
                         </tr>
                         <tr>
                             <td style='padding: 8px 0; color: #6b7280; font-size: 14px;'>Date:</td>
@@ -844,7 +844,7 @@ $stmt->close();
                 </div>
 
                 <div style="margin-bottom: 24px;">
-                    <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">Cost ($)</label>
+                    <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">Cost (RWF)</label>
                     <input type="number" name="cost" step="0.01" min="0" value="0.00" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;">
                 </div>
 

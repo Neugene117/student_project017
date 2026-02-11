@@ -153,13 +153,15 @@
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
-                                    <div class="notification-icon <?php echo htmlspecialchars($notification['type']); ?>">
-                                        <i class="fas <?php echo getNotificationIcon($notification['type']); ?>"></i>
-                                    </div>
-                                    <div class="notification-content">
-                                        <p class="notification-text"><?php echo htmlspecialchars($notification['message']); ?></p>
-                                        <span class="notification-time"><?php echo timeAgo($notification['created_at']); ?></span>
-                                    </div>
+                                    <a href="notifications.php" class="notification-link" style="display:flex; align-items:flex-start; gap:12px; text-decoration:none; color:inherit; width:100%;">
+                                        <div class="notification-icon <?php echo htmlspecialchars($notification['type']); ?>">
+                                            <i class="fas <?php echo getNotificationIcon($notification['type']); ?>"></i>
+                                        </div>
+                                        <div class="notification-content">
+                                            <p class="notification-text"><?php echo htmlspecialchars($notification['message']); ?></p>
+                                            <span class="notification-time"><?php echo timeAgo($notification['created_at']); ?></span>
+                                        </div>
+                                    </a>
                                 </div>
                                 <?php endforeach; ?>
                             <?php endif; ?>
