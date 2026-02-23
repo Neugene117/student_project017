@@ -950,8 +950,9 @@ $stmt->close();
             <?php endforeach; ?>
         ];
 
-        // Track alerted schedules to prevent spamming
+        // Track sent alerts and in-flight requests to avoid duplicates while allowing retries.
         const alertedSchedules = new Set();
+        const alertRequestsInFlight = new Set();
 
         // Function to convert interval to seconds
         function getIntervalSeconds(interval_value, interval_unit) {
@@ -995,14 +996,16 @@ $stmt->close();
                 
                 if (isDue) {
                     // Schedule is due
+                    schedule.is_due = true;
+                    schedule.seconds_remaining = 0;
                     badge.classList.add('due');
                     badge.classList.remove('pending');
                     badge.innerHTML = '<i class="fas fa-exclamation-circle"></i><span>Due Now</span>';
                     button.classList.remove('hidden');
 
                     // Trigger Alert if not already sent
-                    if (!alertedSchedules.has(schedule.id)) {
-                        alertedSchedules.add(schedule.id);
+                    if (!alertedSchedules.has(schedule.id) && !alertRequestsInFlight.has(schedule.id)) {
+                        alertRequestsInFlight.add(schedule.id);
                         
                         // Send AJAX request to trigger email and notification
                         fetch(window.location.href, {
@@ -1015,14 +1018,20 @@ $stmt->close();
                         .then(response => response.json())
                         .then(data => {
                             if (data.status === 'success') {
+                                alertedSchedules.add(schedule.id);
                                 console.log('Maintenance alert sent:', data.message);
                             } else {
                                 console.log('Maintenance alert status:', data.message);
+                                if (data.status === 'ignored' && data.message === 'Already alerted') {
+                                    alertedSchedules.add(schedule.id);
+                                }
                             }
                         })
                         .catch(err => {
                             console.error('Error sending maintenance alert:', err);
-                            alertedSchedules.delete(schedule.id);
+                        })
+                        .finally(() => {
+                            alertRequestsInFlight.delete(schedule.id);
                         });
                     }
                 } else {
