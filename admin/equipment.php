@@ -24,7 +24,7 @@ if ($user_role !== 'admin') {
 // Handle Get Equipment Details (AJAX)
 if (isset($_GET['action']) && $_GET['action'] === 'get_equipment_details' && isset($_GET['id'])) {
     header('Content-Type: application/json');
-    $equipment_id = (int)$_GET['id'];
+    $equipment_id = (int) $_GET['id'];
     $query = "SELECT * FROM equipment WHERE id = ?";
     $stmt = mysqli_prepare($conn, $query);
     if ($stmt) {
@@ -88,30 +88,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } else {
         // Sanitize and validate input
         $equipment_name = isset($_POST['equipment_name']) ? trim($_POST['equipment_name']) : '';
-        $category_id = isset($_POST['category_id']) ? (int)$_POST['category_id'] : 0;
+        $category_id = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
         $serial_number = isset($_POST['serial_number']) ? trim($_POST['serial_number']) : '';
-        $equipment_location_id = isset($_POST['equipment_location_id']) ? (int)$_POST['equipment_location_id'] : 0;
+        $equipment_location_id = isset($_POST['equipment_location_id']) ? (int) $_POST['equipment_location_id'] : 0;
         $purchase_date = isset($_POST['purchase_date']) ? $_POST['purchase_date'] : '';
         $has_warranty = isset($_POST['has_warranty']) ? $_POST['has_warranty'] : 'no';
-        
+
         // Handle warranty dates - set to NULL if no warranty
         $starting_date = null;
         $expired_date = null;
-        
+
         if ($has_warranty === 'yes') {
             $starting_date = isset($_POST['starting_date']) && !empty($_POST['starting_date']) ? $_POST['starting_date'] : null;
             $expired_date = isset($_POST['expired_date']) && !empty($_POST['expired_date']) ? $_POST['expired_date'] : null;
         }
-        
+
         $statuss = isset($_POST['statuss']) ? trim($_POST['statuss']) : 'Active';
-        
+
         // Handle file upload for equipment image
         $equipment_image = '';
         if (isset($_FILES['equipment_image']) && $_FILES['equipment_image']['size'] > 0) {
             $file = $_FILES['equipment_image'];
             $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             $max_size = 5 * 1024 * 1024; // 5MB
-            
+
             if (!in_array($file['type'], $allowed_types)) {
                 $error_message = "Invalid file type. Please upload an image file (JPG, PNG, GIF, WebP).";
             } elseif ($file['size'] > $max_size) {
@@ -121,21 +121,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (!is_dir('../uploads/equipment')) {
                     mkdir('../uploads/equipment', 0755, true);
                 }
-                
+
                 $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
                 $equipment_image = 'equipment_' . time() . '_' . uniqid() . '.' . $file_extension;
                 $file_path = '../uploads/equipment/' . $equipment_image;
-                
+
                 if (!move_uploaded_file($file['tmp_name'], $file_path)) {
                     $error_message = "Failed to upload image. Please try again.";
                     $equipment_image = '';
                 }
             }
         }
-        
+
         // Validate required fields
         if (empty($equipment_name)) {
             $_SESSION['error_message'] = "Equipment name is required.";
+            header("Location: equipment.php");
+            exit();
+        } elseif (preg_match('/[0-9]/', $equipment_name)) {
+            $_SESSION['error_message'] = "Equipment name cannot contain numbers. Please use only letters and spaces.";
             header("Location: equipment.php");
             exit();
         } elseif ($category_id <= 0) {
@@ -154,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 mysqli_stmt_bind_param($stmt_check, "s", $serial_number);
                 mysqli_stmt_execute($stmt_check);
                 $result_check = mysqli_stmt_get_result($stmt_check);
-                
+
                 if (mysqli_num_rows($result_check) > 0) {
                     $_SESSION['error_message'] = "An equipment with this serial number already exists. Serial numbers must be unique.";
                     header("Location: equipment.php");
@@ -163,14 +167,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 mysqli_stmt_close($stmt_check);
             }
         }
-        
+
         // If we reach here, all validations have passed
         // Insert into database
         $insert_query = "INSERT INTO equipment (equipment_name, equipment_image, category_id, serial_number, 
                         equipment_location_id, purchase_date, starting_date, expired_date, statuss, user_id, 
                         created_at, updated_at) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
-        
+
         $stmt = mysqli_prepare($conn, $insert_query);
         if ($stmt) {
             mysqli_stmt_bind_param(
@@ -187,7 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $statuss,
                 $user_id
             );
-            
+
             if (mysqli_stmt_execute($stmt)) {
                 mysqli_stmt_close($stmt);
                 // Store success message in session and redirect to prevent duplicate submissions on refresh
@@ -213,8 +217,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         $error_message = "Invalid request. Please try again.";
     } else {
-        $equipment_id = isset($_POST['equipment_id']) ? (int)$_POST['equipment_id'] : 0;
-        
+        $equipment_id = isset($_POST['equipment_id']) ? (int) $_POST['equipment_id'] : 0;
+
         if ($equipment_id <= 0) {
             $_SESSION['error_message'] = "Invalid equipment ID.";
             header("Location: equipment.php");
@@ -223,26 +227,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         // Sanitize and validate input
         $equipment_name = isset($_POST['equipment_name']) ? trim($_POST['equipment_name']) : '';
-        $category_id = isset($_POST['category_id']) ? (int)$_POST['category_id'] : 0;
+        $category_id = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
         $serial_number = isset($_POST['serial_number']) ? trim($_POST['serial_number']) : '';
-        $equipment_location_id = isset($_POST['equipment_location_id']) ? (int)$_POST['equipment_location_id'] : 0;
+        $equipment_location_id = isset($_POST['equipment_location_id']) ? (int) $_POST['equipment_location_id'] : 0;
         $purchase_date = isset($_POST['purchase_date']) ? $_POST['purchase_date'] : '';
         $has_warranty = isset($_POST['has_warranty']) ? $_POST['has_warranty'] : 'no';
-        
+
         // Handle warranty dates - set to NULL if no warranty
         $starting_date = null;
         $expired_date = null;
-        
+
         if ($has_warranty === 'yes') {
             $starting_date = isset($_POST['starting_date']) && !empty($_POST['starting_date']) ? $_POST['starting_date'] : null;
             $expired_date = isset($_POST['expired_date']) && !empty($_POST['expired_date']) ? $_POST['expired_date'] : null;
         }
-        
+
         $statuss = isset($_POST['statuss']) ? trim($_POST['statuss']) : 'Active';
-        
+
         // Validate required fields
         if (empty($equipment_name)) {
             $_SESSION['error_message'] = "Equipment name is required.";
+            header("Location: equipment.php");
+            exit();
+        } elseif (preg_match('/[0-9]/', $equipment_name)) {
+            $_SESSION['error_message'] = "Equipment name cannot contain numbers. Please use only letters and spaces.";
             header("Location: equipment.php");
             exit();
         } elseif ($category_id <= 0) {
@@ -261,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 mysqli_stmt_bind_param($stmt_check, "si", $serial_number, $equipment_id);
                 mysqli_stmt_execute($stmt_check);
                 $result_check = mysqli_stmt_get_result($stmt_check);
-                
+
                 if (mysqli_num_rows($result_check) > 0) {
                     $_SESSION['error_message'] = "An equipment with this serial number already exists.";
                     header("Location: equipment.php");
@@ -274,12 +282,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         // Handle file upload for equipment image
         $equipment_image = '';
         $update_image = false;
-        
+
         if (isset($_FILES['equipment_image']) && $_FILES['equipment_image']['size'] > 0) {
             $file = $_FILES['equipment_image'];
             $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             $max_size = 5 * 1024 * 1024; // 5MB
-            
+
             if (!in_array($file['type'], $allowed_types)) {
                 $error_message = "Invalid file type. Please upload an image file (JPG, PNG, GIF, WebP).";
             } elseif ($file['size'] > $max_size) {
@@ -289,14 +297,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (!is_dir('../uploads/equipment')) {
                     mkdir('../uploads/equipment', 0755, true);
                 }
-                
+
                 $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
                 $equipment_image = 'equipment_' . time() . '_' . uniqid() . '.' . $file_extension;
                 $file_path = '../uploads/equipment/' . $equipment_image;
-                
+
                 if (move_uploaded_file($file['tmp_name'], $file_path)) {
                     $update_image = true;
-                    
+
                     // Delete old image
                     $get_old_image_query = "SELECT equipment_image FROM equipment WHERE id = ?";
                     $stmt_old = mysqli_prepare($conn, $get_old_image_query);
@@ -319,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
         }
-        
+
         // Update database
         if (empty($error_message)) {
             if ($update_image) {
@@ -327,17 +335,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 equipment_location_id=?, purchase_date=?, starting_date=?, expired_date=?, statuss=?, updated_at=NOW() 
                                 WHERE id=?";
                 $stmt = mysqli_prepare($conn, $update_query);
-                mysqli_stmt_bind_param($stmt, "ssisssdssi", $equipment_name, $equipment_image, $category_id, $serial_number, 
-                                      $equipment_location_id, $purchase_date, $starting_date, $expired_date, $statuss, $equipment_id);
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "ssisssdssi",
+                    $equipment_name,
+                    $equipment_image,
+                    $category_id,
+                    $serial_number,
+                    $equipment_location_id,
+                    $purchase_date,
+                    $starting_date,
+                    $expired_date,
+                    $statuss,
+                    $equipment_id
+                );
             } else {
                 $update_query = "UPDATE equipment SET equipment_name=?, category_id=?, serial_number=?, 
                                 equipment_location_id=?, purchase_date=?, starting_date=?, expired_date=?, statuss=?, updated_at=NOW() 
                                 WHERE id=?";
                 $stmt = mysqli_prepare($conn, $update_query);
-                mysqli_stmt_bind_param($stmt, "sisssdssi", $equipment_name, $category_id, $serial_number, 
-                                      $equipment_location_id, $purchase_date, $starting_date, $expired_date, $statuss, $equipment_id);
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "sisssdssi",
+                    $equipment_name,
+                    $category_id,
+                    $serial_number,
+                    $equipment_location_id,
+                    $purchase_date,
+                    $starting_date,
+                    $expired_date,
+                    $statuss,
+                    $equipment_id
+                );
             }
-            
+
             if ($stmt && mysqli_stmt_execute($stmt)) {
                 mysqli_stmt_close($stmt);
                 $_SESSION['success_message'] = "Equipment updated successfully!";
@@ -357,8 +388,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         $error_message = "Invalid request. Please try again.";
     } else {
-        $equipment_id = isset($_POST['equipment_id']) ? (int)$_POST['equipment_id'] : 0;
-        
+        $equipment_id = isset($_POST['equipment_id']) ? (int) $_POST['equipment_id'] : 0;
+
         if ($equipment_id > 0) {
             // Get equipment image for deletion
             $get_image_query = "SELECT equipment_image FROM equipment WHERE id = ?";
@@ -378,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
                 mysqli_stmt_close($stmt);
             }
-            
+
             // Delete equipment record
             $delete_query = "DELETE FROM equipment WHERE id = ?";
             $stmt = mysqli_prepare($conn, $delete_query);
@@ -421,6 +452,7 @@ if (empty($_SESSION['csrf_token'])) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -449,7 +481,7 @@ if (empty($_SESSION['csrf_token'])) {
             color: #1f2937;
             font-size: 24px;
         }
- 
+
         .btn-add {
             background: #740101;
             color: white;
@@ -975,7 +1007,8 @@ if (empty($_SESSION['csrf_token'])) {
                 font-size: 12px;
             }
 
-            th, td {
+            th,
+            td {
                 padding: 8px;
             }
 
@@ -985,6 +1018,7 @@ if (empty($_SESSION['csrf_token'])) {
         }
     </style>
 </head>
+
 <body>
     <?php include './include/sidebar.php'; ?>
 
@@ -1006,92 +1040,101 @@ if (empty($_SESSION['csrf_token'])) {
 
                 <!-- Success Message -->
                 <?php if (!empty($success_message)): ?>
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <span><?php echo htmlspecialchars($success_message); ?></span>
-                </div>
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        <span><?php echo htmlspecialchars($success_message); ?></span>
+                    </div>
                 <?php endif; ?>
 
                 <!-- Error Message -->
                 <?php if (!empty($error_message)): ?>
-                <div class="alert alert-error">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span><?php echo htmlspecialchars($error_message); ?></span>
-                </div>
+                    <div class="alert alert-error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span><?php echo htmlspecialchars($error_message); ?></span>
+                    </div>
                 <?php endif; ?>
 
                 <!-- Equipment Table -->
                 <div class="equipment-table">
                     <div class="table-wrapper">
                         <?php if (count($equipment_list) > 0): ?>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Image</th>
-                                    <th>Equipment Name</th>
-                                    <th>Category</th>
-                                    <th>Serial Number</th>
-                                    <th>Location</th>
-                                    <th>Status</th>
-                                    <th>Purchase Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($equipment_list as $equipment): ?>
-                                <tr>
-                                    <td>
-                                        <?php
-                                            $img_src = (!empty($equipment['equipment_image']) && file_exists('../uploads/equipment/' . $equipment['equipment_image']))
-                                                ? '../uploads/equipment/' . htmlspecialchars($equipment['equipment_image'])
-                                                : '../static/images/default-equipment.png';
-                                        ?>
-                                        <img src="<?php echo $img_src; ?>" alt="Equipment" class="equipment-img">
-                                    </td>
-                                    <td><strong><?php echo htmlspecialchars($equipment['equipment_name']); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($equipment['category_name'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($equipment['serial_number'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($equipment['location_name'] ?? 'N/A'); ?></td>
-                                    <td>
-                                        <?php
-                                            $status_class = 'badge-' . strtolower($equipment['statuss']);
-                                            if (!in_array($equipment['statuss'], ['Active', 'Inactive', 'Maintenance'])) {
-                                                $status_class = 'badge-active';
-                                            }
-                                        ?>
-                                        <span class="badge <?php echo $status_class; ?>">
-                                            <?php echo htmlspecialchars($equipment['statuss']); ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo !empty($equipment['purchase_date']) ? date('M d, Y', strtotime($equipment['purchase_date'])) : 'N/A'; ?></td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            <a href="equipment-details.php?id=<?php echo $equipment['id']; ?>" class="btn-icon btn-view" title="View Details">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                            <button class="btn-icon btn-edit" onclick="editEquipment(<?php echo $equipment['id']; ?>)" title="Edit Equipment">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <form method="POST" action="" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this equipment?');">
-                                                <input type="hidden" name="action" value="delete_equipment">
-                                                <input type="hidden" name="equipment_id" value="<?php echo $equipment['id']; ?>">
-                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-                                                <button type="submit" class="btn-icon btn-delete" title="Delete Equipment">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Image</th>
+                                        <th>Equipment Name</th>
+                                        <th>Category</th>
+                                        <th>Serial Number</th>
+                                        <th>Location</th>
+                                        <th>Status</th>
+                                        <th>Purchase Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($equipment_list as $equipment): ?>
+                                        <tr>
+                                            <td>
+                                                <?php
+                                                $img_src = (!empty($equipment['equipment_image']) && file_exists('../uploads/equipment/' . $equipment['equipment_image']))
+                                                    ? '../uploads/equipment/' . htmlspecialchars($equipment['equipment_image'])
+                                                    : '../static/images/default-equipment.png';
+                                                ?>
+                                                <img src="<?php echo $img_src; ?>" alt="Equipment" class="equipment-img">
+                                            </td>
+                                            <td><strong><?php echo htmlspecialchars($equipment['equipment_name']); ?></strong>
+                                            </td>
+                                            <td><?php echo htmlspecialchars($equipment['category_name'] ?? 'N/A'); ?></td>
+                                            <td><?php echo htmlspecialchars($equipment['serial_number'] ?? 'N/A'); ?></td>
+                                            <td><?php echo htmlspecialchars($equipment['location_name'] ?? 'N/A'); ?></td>
+                                            <td>
+                                                <?php
+                                                $status_class = 'badge-' . strtolower($equipment['statuss']);
+                                                if (!in_array($equipment['statuss'], ['Active', 'Inactive', 'Maintenance'])) {
+                                                    $status_class = 'badge-active';
+                                                }
+                                                ?>
+                                                <span class="badge <?php echo $status_class; ?>">
+                                                    <?php echo htmlspecialchars($equipment['statuss']); ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo !empty($equipment['purchase_date']) ? date('M d, Y', strtotime($equipment['purchase_date'])) : 'N/A'; ?>
+                                            </td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <a href="equipment-details.php?id=<?php echo $equipment['id']; ?>"
+                                                        class="btn-icon btn-view" title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <button class="btn-icon btn-edit"
+                                                        onclick="editEquipment(<?php echo $equipment['id']; ?>)"
+                                                        title="Edit Equipment">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <form method="POST" action="" style="display: inline;"
+                                                        onsubmit="return confirm('Are you sure you want to delete this equipment?');">
+                                                        <input type="hidden" name="action" value="delete_equipment">
+                                                        <input type="hidden" name="equipment_id"
+                                                            value="<?php echo $equipment['id']; ?>">
+                                                        <input type="hidden" name="csrf_token"
+                                                            value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                                                        <button type="submit" class="btn-icon btn-delete"
+                                                            title="Delete Equipment">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         <?php else: ?>
-                        <div class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            <h3>No Equipment Found</h3>
-                            <p>Click the "Add Equipment" button to add your first equipment.</p>
-                        </div>
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <h3>No Equipment Found</h3>
+                                <p>Click the "Add Equipment" button to add your first equipment.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1113,7 +1156,10 @@ if (empty($_SESSION['csrf_token'])) {
 
                 <div class="form-group">
                     <label for="equipment_name">Equipment Name <span class="required">*</span></label>
-                    <input type="text" id="equipment_name" name="equipment_name" placeholder="Enter equipment name" required>
+                    <input type="text" id="equipment_name" name="equipment_name" placeholder="Enter equipment name"
+                        pattern="[A-Za-z\s]+" title="Equipment name can only contain letters and spaces" required>
+                    <small id="nameError" style="color: #ef4444; display: none; margin-top: 4px;">Numbers are not
+                        allowed in equipment name</small>
                 </div>
 
                 <div class="form-group">
@@ -1121,9 +1167,9 @@ if (empty($_SESSION['csrf_token'])) {
                     <select id="category_id" name="category_id" required>
                         <option value="">-- Select Category --</option>
                         <?php foreach ($categories as $category): ?>
-                        <option value="<?php echo $category['category_id']; ?>">
-                            <?php echo htmlspecialchars($category['category_name']); ?>
-                        </option>
+                            <option value="<?php echo $category['category_id']; ?>">
+                                <?php echo htmlspecialchars($category['category_name']); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -1138,9 +1184,9 @@ if (empty($_SESSION['csrf_token'])) {
                     <select id="equipment_location_id" name="equipment_location_id" required>
                         <option value="">-- Select Location --</option>
                         <?php foreach ($locations as $location): ?>
-                        <option value="<?php echo $location['location_id']; ?>">
-                            <?php echo htmlspecialchars($location['location_name']); ?>
-                        </option>
+                            <option value="<?php echo $location['location_id']; ?>">
+                                <?php echo htmlspecialchars($location['location_name']); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -1194,16 +1240,18 @@ if (empty($_SESSION['csrf_token'])) {
                         <input type="file" id="equipment_image" name="equipment_image" accept="image/*">
                     </div>
                     <div id="fileName" class="file-name" style="margin-top: 8px;"></div>
-                    
+
                     <!-- Image Preview Container -->
                     <div id="imagePreviewContainer" class="image-preview-container">
                         <div class="preview-image-wrapper">
                             <img id="previewImage" class="preview-image" alt="Preview">
                             <div class="preview-actions">
-                                <button type="button" class="preview-button btn-change-image" onclick="document.getElementById('equipment_image').click()">
+                                <button type="button" class="preview-button btn-change-image"
+                                    onclick="document.getElementById('equipment_image').click()">
                                     <i class="fas fa-sync-alt"></i> Change Image
                                 </button>
-                                <button type="button" class="preview-button btn-remove-image" onclick="removeImagePreview()">
+                                <button type="button" class="preview-button btn-remove-image"
+                                    onclick="removeImagePreview()">
                                     <i class="fas fa-trash"></i> Remove Image
                                 </button>
                             </div>
@@ -1234,7 +1282,7 @@ if (empty($_SESSION['csrf_token'])) {
             </div>
         </div>
     </div>
-<script src="./assets/js/script.js"></script>
+    <script src="./assets/js/script.js"></script>
     <script>
         // Get modal elements
         const addEquipmentModal = document.getElementById('addEquipmentModal');
@@ -1249,7 +1297,9 @@ if (empty($_SESSION['csrf_token'])) {
         const formAction = document.getElementById('formAction');
         const equipmentIdInput = document.getElementById('equipment_id');
         const submitBtn = document.getElementById('submitBtn');
-        
+        const equipmentNameInput = document.getElementById('equipment_name');
+        const nameError = document.getElementById('nameError');
+
         // Warranty fields
         const warrantyYes = document.getElementById('warranty_yes');
         const warrantyNo = document.getElementById('warranty_no');
@@ -1258,13 +1308,13 @@ if (empty($_SESSION['csrf_token'])) {
         const expiredDateInput = document.getElementById('expired_date');
 
         // Handle warranty selection
-        warrantyYes.addEventListener('change', function() {
+        warrantyYes.addEventListener('change', function () {
             if (this.checked) {
                 warrantyFields.style.display = 'block';
             }
         });
 
-        warrantyNo.addEventListener('change', function() {
+        warrantyNo.addEventListener('change', function () {
             if (this.checked) {
                 warrantyFields.style.display = 'none';
                 startingDateInput.value = '';
@@ -1272,35 +1322,63 @@ if (empty($_SESSION['csrf_token'])) {
             }
         });
 
+        // Equipment Name Validation - Only allow letters and spaces, no numbers
+        equipmentNameInput.addEventListener('input', function () {
+            // Remove any numbers from the input
+            const originalValue = this.value;
+            const filteredValue = originalValue.replace(/[0-9]/g, '');
+
+            if (originalValue !== filteredValue) {
+                this.value = filteredValue;
+                nameError.style.display = 'block';
+                setTimeout(() => {
+                    nameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting numbers
+        equipmentNameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                nameError.style.display = 'block';
+                setTimeout(() => {
+                    nameError.style.display = 'none';
+                }, 3000);
+                alert('Numbers are not allowed in equipment name');
+            }
+        });
+
         // Open Add Equipment Modal
-        addEquipmentBtn.addEventListener('click', function() {
+        addEquipmentBtn.addEventListener('click', function () {
             equipmentForm.reset();
             fileName.textContent = '';
             warrantyNo.checked = true;
             warrantyFields.style.display = 'none';
             imagePreviewContainer.classList.remove('show');
-            
+
             // Reset modal for Add mode
             modalTitle.textContent = 'Add New Equipment';
             formAction.value = 'add_equipment';
             equipmentIdInput.value = '';
             submitBtn.textContent = 'Add Equipment';
-            
+
             addEquipmentModal.classList.add('show');
         });
 
         // Handle file input change for image preview
-        fileInput.addEventListener('change', function() {
+        fileInput.addEventListener('change', function () {
             if (this.files && this.files[0]) {
                 const file = this.files[0];
                 const reader = new FileReader();
-                
-                reader.onload = function(e) {
+
+                reader.onload = function (e) {
                     previewImage.src = e.target.result;
                     imagePreviewContainer.classList.add('show');
                     fileName.textContent = 'Selected: ' + file.name;
                 };
-                
+
                 reader.readAsDataURL(file);
             }
         });
@@ -1323,7 +1401,7 @@ if (empty($_SESSION['csrf_token'])) {
         }
 
         // Close modal when clicking outside
-        window.addEventListener('click', function(event) {
+        window.addEventListener('click', function (event) {
             if (event.target === addEquipmentModal) {
                 closeModal();
             }
@@ -1366,23 +1444,23 @@ if (empty($_SESSION['csrf_token'])) {
         function handleDrop(e) {
             const dt = e.dataTransfer;
             const files = dt.files;
-            
+
             if (files && files[0]) {
                 const file = files[0];
-                
+
                 // Validate file type
                 const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
                 if (!allowedTypes.includes(file.type)) {
                     alert('Please upload a valid image file (JPG, PNG, GIF, or WebP).');
                     return;
                 }
-                
+
                 // Set the file input
                 fileInput.files = files;
-                
+
                 // Show preview
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = function (e) {
                     previewImage.src = e.target.result;
                     imagePreviewContainer.classList.add('show');
                     fileName.textContent = 'Selected: ' + file.name;
@@ -1419,7 +1497,7 @@ if (empty($_SESSION['csrf_token'])) {
                     <p style="padding: 10px; background: #f9fafb; border-radius: 6px; color: #374151; margin: 0;">${purchaseDate ? new Date(purchaseDate).toLocaleDateString() : 'N/A'}</p>
                 </div>
             `;
-            
+
             document.getElementById('viewContent').innerHTML = content;
             viewEquipmentModal.classList.add('show');
         }
@@ -1427,14 +1505,14 @@ if (empty($_SESSION['csrf_token'])) {
         // Edit Equipment
         function editEquipment(id) {
             // Show loading state or similar if desired
-            
+
             // Fetch equipment details
             fetch('equipment.php?action=get_equipment_details&id=' + id)
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
                         const equipment = data.data;
-                        
+
                         // Populate form fields
                         document.getElementById('equipment_name').value = equipment.equipment_name;
                         document.getElementById('category_id').value = equipment.category_id;
@@ -1442,7 +1520,7 @@ if (empty($_SESSION['csrf_token'])) {
                         document.getElementById('equipment_location_id').value = equipment.equipment_location_id;
                         document.getElementById('purchase_date').value = equipment.purchase_date || '';
                         document.getElementById('statuss').value = equipment.statuss;
-                        
+
                         // Handle warranty
                         if (equipment.starting_date && equipment.expired_date) {
                             warrantyYes.checked = true;
@@ -1455,7 +1533,7 @@ if (empty($_SESSION['csrf_token'])) {
                             document.getElementById('starting_date').value = '';
                             document.getElementById('expired_date').value = '';
                         }
-                        
+
                         // Handle image preview
                         if (equipment.equipment_image) {
                             previewImage.src = '../uploads/equipment/' + equipment.equipment_image;
@@ -1465,13 +1543,13 @@ if (empty($_SESSION['csrf_token'])) {
                             imagePreviewContainer.classList.remove('show');
                             fileName.textContent = '';
                         }
-                        
+
                         // Set modal for Edit mode
                         modalTitle.textContent = 'Edit Equipment';
                         formAction.value = 'update_equipment';
                         equipmentIdInput.value = equipment.id;
                         submitBtn.textContent = 'Update Equipment';
-                        
+
                         // Show modal
                         addEquipmentModal.classList.add('show');
                     } else {
@@ -1497,9 +1575,9 @@ if (empty($_SESSION['csrf_token'])) {
         }
 
         // Form validation and Loading State
-        equipmentForm.addEventListener('submit', function(e) {
+        equipmentForm.addEventListener('submit', function (e) {
             const submitBtn = this.querySelector('button[type="submit"]');
-            
+
             // Prevent double submission
             if (submitBtn.disabled) {
                 e.preventDefault();
@@ -1513,6 +1591,14 @@ if (empty($_SESSION['csrf_token'])) {
             if (!equipmentName) {
                 e.preventDefault();
                 alert('Equipment name is required');
+                return;
+            }
+
+            // Validate equipment name - no numbers allowed
+            if (/[0-9]/.test(equipmentName)) {
+                e.preventDefault();
+                alert('Equipment name cannot contain numbers. Please use only letters and spaces.');
+                nameError.style.display = 'block';
                 return;
             }
 
@@ -1540,12 +1626,12 @@ if (empty($_SESSION['csrf_token'])) {
         document.querySelectorAll('.btn-delete').forEach(btn => {
             const form = btn.closest('form');
             if (form) {
-                form.addEventListener('submit', function(e) {
+                form.addEventListener('submit', function (e) {
                     if (btn.disabled) {
                         e.preventDefault();
                         return;
                     }
-                    
+
                     // Disable button and show loading
                     btn.disabled = true;
                     btn.style.opacity = '0.7';
@@ -1556,4 +1642,5 @@ if (empty($_SESSION['csrf_token'])) {
         });
     </script>
 </body>
+
 </html>

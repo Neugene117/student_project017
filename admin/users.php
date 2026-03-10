@@ -39,7 +39,8 @@ $user_fullname = $user_data['firstname'] . ' ' . $user_data['lastname'];
 $stmt_role->close();
 
 // Function to get all users
-function getAllUsers($conn) {
+function getAllUsers($conn)
+{
     $sql = "SELECT 
                 u.user_id, 
                 u.firstname, 
@@ -55,7 +56,7 @@ function getAllUsers($conn) {
             FROM users u 
             LEFT JOIN role r ON u.role_id = r.role_id 
             ORDER BY u.user_id ASC";
-    
+
     $result = $conn->query($sql);
     $data = [];
     if ($result) {
@@ -67,7 +68,8 @@ function getAllUsers($conn) {
 }
 
 // Function to get all roles for the modal
-function getAllRoles($conn) {
+function getAllRoles($conn)
+{
     $sql = "SELECT role_id, role_name FROM role ORDER BY role_name";
     $result = $conn->query($sql);
     $roles = [];
@@ -89,80 +91,93 @@ if (isset($_POST['add_user'])) {
     $role_id = mysqli_real_escape_string($conn, $_POST['role_id']);
     $gander = mysqli_real_escape_string($conn, $_POST['gander']);
     $statuss = '1'; // Default status
-    
-    // Hash password
-    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-    
-    // Handle image upload
-    $user_image = '';
-    if (isset($_FILES['user_image']) && $_FILES['user_image']['error'] == 0) {
-        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
-        $filename = $_FILES['user_image']['name'];
-        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        if (in_array($ext, $allowed)) {
-            $new_filename = uniqid() . '.' . $ext;
-            if (move_uploaded_file($_FILES['user_image']['tmp_name'], '../uploads/users/' . $new_filename)) {
-                $user_image = $new_filename;
+
+    // Validate First Name - only letters and spaces
+    if (!preg_match('/^[A-Za-z\s]+$/', $firstname)) {
+        $error = "First Name can only contain letters and spaces";
+    }
+    // Validate Last Name - only letters and spaces
+    elseif (!preg_match('/^[A-Za-z\s]+$/', $lastname)) {
+        $error = "Last Name can only contain letters and spaces";
+    }
+    // Validate Username - must start with letter
+    elseif (!preg_match('/^[A-Za-z]/', $username)) {
+        $error = "Username must start with a letter";
+    } else {
+        // Hash password
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+        // Handle image upload
+        $user_image = '';
+        if (isset($_FILES['user_image']) && $_FILES['user_image']['error'] == 0) {
+            $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+            $filename = $_FILES['user_image']['name'];
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (in_array($ext, $allowed)) {
+                $new_filename = uniqid() . '.' . $ext;
+                if (move_uploaded_file($_FILES['user_image']['tmp_name'], '../uploads/users/' . $new_filename)) {
+                    $user_image = $new_filename;
+                }
             }
         }
-    }
-    
-    $sql = "INSERT INTO users (firstname, lastname, username, email, passwords, role_id, gander, user_image, statuss) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssssisss", $firstname, $lastname, $username, $email, $hashed_password, $role_id, $gander, $user_image, $statuss);
-    
-    if ($stmt->execute()) {
-        // Send Welcome Email with Credentials
-        $subject = "Welcome to Equipment Management System - Your Credentials";
-        
-        // Get Role Name
-        $role_name_query = "SELECT role_name FROM role WHERE role_id = '$role_id'";
-        $role_result = mysqli_query($conn, $role_name_query);
-        $role_row = mysqli_fetch_assoc($role_result);
-        $role_name = $role_row['role_name'] ?? 'User';
 
-        $login_url = "http://" . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['PHP_SELF'])) . "/index.html";
+        $sql = "INSERT INTO users (firstname, lastname, username, email, passwords, role_id, gander, user_image, statuss) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("sssssisss", $firstname, $lastname, $username, $email, $hashed_password, $role_id, $gander, $user_image, $statuss);
 
-        $emailBody = "
-        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #f9f9f9;'>
-            <div style='text-align: center; margin-bottom: 20px;'>
-                <img src='cid:company_logo' alt='Company Logo' style='max-width: 150px; height: auto;'>
-                <h2 style='color: #740101; margin-top: 10px;'>Welcome to Equipment Management System</h2>
-            </div>
-            
-            <div style='background-color: #ffffff; padding: 20px; border-radius: 5px; border-left: 4px solid #740101;'>
-                <p>Dear <strong>" . htmlspecialchars($firstname . ' ' . $lastname) . "</strong>,</p>
-                
-                <p>Your account has been successfully created. You have been assigned the role of <strong>" . htmlspecialchars($role_name) . "</strong>.</p>
-                
-                <p>Below are your login credentials:</p>
-                
-                <div style='background-color: #f0f2f5; padding: 15px; border-radius: 5px; margin: 15px 0;'>
-                    <p style='margin: 5px 0;'><strong>Username:</strong> " . htmlspecialchars($username) . "</p>
-                    <p style='margin: 5px 0;'><strong>Password:</strong> " . htmlspecialchars($password) . "</p>
-                    <p style='margin: 5px 0;'><strong>Email:</strong> " . htmlspecialchars($email) . "</p>
+        if ($stmt->execute()) {
+            // Send Welcome Email with Credentials
+            $subject = "Welcome to Equipment Management System - Your Credentials";
+
+            // Get Role Name
+            $role_name_query = "SELECT role_name FROM role WHERE role_id = '$role_id'";
+            $role_result = mysqli_query($conn, $role_name_query);
+            $role_row = mysqli_fetch_assoc($role_result);
+            $role_name = $role_row['role_name'] ?? 'User';
+
+            $login_url = "http://" . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['PHP_SELF'])) . "/index.html";
+
+            $emailBody = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #f9f9f9;'>
+                <div style='text-align: center; margin-bottom: 20px;'>
+                    <img src='cid:company_logo' alt='Company Logo' style='max-width: 150px; height: auto;'>
+                    <h2 style='color: #740101; margin-top: 10px;'>Welcome to Equipment Management System</h2>
                 </div>
                 
-                <p>Please login and change your password immediately for security purposes.</p>
+                <div style='background-color: #ffffff; padding: 20px; border-radius: 5px; border-left: 4px solid #740101;'>
+                    <p>Dear <strong>" . htmlspecialchars($firstname . ' ' . $lastname) . "</strong>,</p>
+                    
+                    <p>Your account has been successfully created. You have been assigned the role of <strong>" . htmlspecialchars($role_name) . "</strong>.</p>
+                    
+                    <p>Below are your login credentials:</p>
+                    
+                    <div style='background-color: #f0f2f5; padding: 15px; border-radius: 5px; margin: 15px 0;'>
+                        <p style='margin: 5px 0;'><strong>Username:</strong> " . htmlspecialchars($username) . "</p>
+                        <p style='margin: 5px 0;'><strong>Password:</strong> " . htmlspecialchars($password) . "</p>
+                        <p style='margin: 5px 0;'><strong>Email:</strong> " . htmlspecialchars($email) . "</p>
+                    </div>
+                    
+                    <p>Please login and change your password immediately for security purposes.</p>
+                    
+                </div>
                 
-            </div>
-            
-            <div style='margin-top: 20px; font-size: 12px; color: #666; text-align: center;'>
-                <p>This is an automated message. Please do not reply to this email.</p>
-                <p>&copy; " . date('Y') . " Equipment Management System. All rights reserved.</p>
-            </div>
-        </div>";
+                <div style='margin-top: 20px; font-size: 12px; color: #666; text-align: center;'>
+                    <p>This is an automated message. Please do not reply to this email.</p>
+                    <p>&copy; " . date('Y') . " Equipment Management System. All rights reserved.</p>
+                </div>
+            </div>";
 
-        $mailResult = send_app_mail($email, $firstname . ' ' . $lastname, $subject, $emailBody);
-        if (!$mailResult['success']) {
-             header("Location: users.php?success=User added successfully (Warning: Email failed: " . urlencode($mailResult['error']) . ")");
+            $mailResult = send_app_mail($email, $firstname . ' ' . $lastname, $subject, $emailBody);
+            if (!$mailResult['success']) {
+                header("Location: users.php?success=User added successfully (Warning: Email failed: " . urlencode($mailResult['error']) . ")");
+            } else {
+                header("Location: users.php?success=User added successfully");
+            }
+            exit();
         } else {
-             header("Location: users.php?success=User added successfully");
+            $error = "Error adding user: " . $conn->error;
         }
-        exit();
-    } else {
-        $error = "Error adding user: " . $conn->error;
     }
 }
 
@@ -176,54 +191,67 @@ if (isset($_POST['edit_user'])) {
     $role_id = mysqli_real_escape_string($conn, $_POST['role_id']);
     $gander = mysqli_real_escape_string($conn, $_POST['gander']);
     $statuss = mysqli_real_escape_string($conn, $_POST['statuss']);
-    
-    // Check if password is provided
-    $password_clause = "";
-    if (!empty($_POST['password'])) {
-        $hashed_password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-        $password_clause = ", passwords = '$hashed_password'";
+
+    // Validate First Name - only letters and spaces
+    if (!preg_match('/^[A-Za-z\s]+$/', $firstname)) {
+        $error = "First Name can only contain letters and spaces";
     }
-    
-    // Handle image upload
-    $image_clause = "";
-    if (isset($_FILES['user_image']) && $_FILES['user_image']['error'] == 0) {
-        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
-        $filename = $_FILES['user_image']['name'];
-        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        if (in_array($ext, $allowed)) {
-            $new_filename = uniqid() . '.' . $ext;
-            if (move_uploaded_file($_FILES['user_image']['tmp_name'], '../uploads/users/' . $new_filename)) {
-                $image_clause = ", user_image = '$new_filename'";
+    // Validate Last Name - only letters and spaces
+    elseif (!preg_match('/^[A-Za-z\s]+$/', $lastname)) {
+        $error = "Last Name can only contain letters and spaces";
+    }
+    // Validate Username - must start with letter
+    elseif (!preg_match('/^[A-Za-z]/', $username)) {
+        $error = "Username must start with a letter";
+    } else {
+        // Check if password is provided
+        $password_clause = "";
+        if (!empty($_POST['password'])) {
+            $hashed_password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+            $password_clause = ", passwords = '$hashed_password'";
+        }
+
+        // Handle image upload
+        $image_clause = "";
+        if (isset($_FILES['user_image']) && $_FILES['user_image']['error'] == 0) {
+            $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+            $filename = $_FILES['user_image']['name'];
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (in_array($ext, $allowed)) {
+                $new_filename = uniqid() . '.' . $ext;
+                if (move_uploaded_file($_FILES['user_image']['tmp_name'], '../uploads/users/' . $new_filename)) {
+                    $image_clause = ", user_image = '$new_filename'";
+                }
             }
         }
-    }
-    
-    $sql = "UPDATE users SET firstname = ?, lastname = ?, username = ?, email = ?, role_id = ?, gander = ?, statuss = ? $password_clause $image_clause WHERE user_id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssissi", $firstname, $lastname, $username, $email, $role_id, $gander, $statuss, $user_id);
-    
-    if ($stmt->execute()) {
-        header("Location: users.php?success=User updated successfully");
-        exit();
-    } else {
-        $error = "Error updating user: " . $conn->error;
+
+        $sql = "UPDATE users SET firstname = ?, lastname = ?, username = ?, email = ?, role_id = ?, gander = ?, statuss = ? $password_clause $image_clause WHERE user_id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssssissi", $firstname, $lastname, $username, $email, $role_id, $gander, $statuss, $user_id);
+
+        if ($stmt->execute()) {
+            header("Location: users.php?success=User updated successfully");
+            exit();
+        } else {
+            $error = "Error updating user: " . $conn->error;
+        }
     }
 }
 
 // Handle Delete User
 if (isset($_GET['delete_user'])) {
     $delete_id = mysqli_real_escape_string($conn, $_GET['delete_user']);
-    
+
     // Prevent deleting self
     if ($delete_id == $_SESSION['user_id']) {
         header("Location: users.php?error=You cannot delete your own account");
         exit();
     }
-    
+
     $sql = "DELETE FROM users WHERE user_id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $delete_id);
-    
+
     if ($stmt->execute()) {
         header("Location: users.php?success=User deleted successfully");
         exit();
@@ -239,6 +267,7 @@ $roles_list = getAllRoles($conn);
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -248,6 +277,7 @@ $roles_list = getAllRoles($conn);
     <link rel="stylesheet" href="./assets/css/dashboard.css">
     <link rel="stylesheet" href="./assets/css/users.css">
 </head>
+
 <body>
     <!-- Sidebar -->
     <?php include './include/sidebar.php'; ?>
@@ -259,7 +289,7 @@ $roles_list = getAllRoles($conn);
 
         <!-- Page Content -->
         <div class="dashboard-content">
-            
+
             <!-- Print Header -->
             <div class="print-header">
                 <img src="../static/images/logo.JPG" alt="Company Logo">
@@ -297,75 +327,81 @@ $roles_list = getAllRoles($conn);
 
                 <div class="report-table">
                     <?php if (!empty($users_list)): ?>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Image</th>
-                                <th>Full Name</th>
-                                <th>Username</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Gender</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($users_list as $user): ?>
-                            <tr>
-                                <td>#<?php echo $user['user_id']; ?></td>
-                                <td>
-                                    <?php if (!empty($user['user_image']) && file_exists("../uploads/users/" . $user['user_image'])): ?>
-                                        <img src="../uploads/users/<?php echo htmlspecialchars($user['user_image']); ?>" alt="User Image" class="user-avatar">
-                                    <?php else: ?>
-                                        <div class="user-avatar" style="background: #e2e8f0; display: flex; align-items: center; justify-content: center; color: #64748b;">
-                                            <i class="fas fa-user"></i>
-                                        </div>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($user['firstname'] . ' ' . $user['lastname']); ?></td>
-                                <td><?php echo htmlspecialchars($user['username']); ?></td>
-                                <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                <td>
-                                    <span class="badge badge-info">
-                                        <?php echo htmlspecialchars($user['role_name']); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo htmlspecialchars($user['gander'] ?? 'N/A'); ?></td>
-                                <td>
-                                    <?php 
-                                    $status = $user['statuss'] ?? 'Active';
-                                    $badgeClass = ($status == 'Active') ? 'badge-success' : 'badge-danger';
-                                    ?>
-                                    <span class="badge <?php echo $badgeClass; ?>">
-                                        <?php echo htmlspecialchars($status); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <button class="btn-icon edit-btn" onclick='openEditModal(<?php echo json_encode($user); ?>)' title="Edit">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <?php if ($user['user_id'] != $_SESSION['user_id']): ?>
-                                    <a href="users.php?delete_user=<?php echo $user['user_id']; ?>" class="btn-icon delete-btn" onclick="return confirm('Are you sure you want to delete this user?');" title="Delete">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Image</th>
+                                    <th>Full Name</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Gender</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($users_list as $user): ?>
+                                    <tr>
+                                        <td>#<?php echo $user['user_id']; ?></td>
+                                        <td>
+                                            <?php if (!empty($user['user_image']) && file_exists("../uploads/users/" . $user['user_image'])): ?>
+                                                <img src="../uploads/users/<?php echo htmlspecialchars($user['user_image']); ?>"
+                                                    alt="User Image" class="user-avatar">
+                                            <?php else: ?>
+                                                <div class="user-avatar"
+                                                    style="background: #e2e8f0; display: flex; align-items: center; justify-content: center; color: #64748b;">
+                                                    <i class="fas fa-user"></i>
+                                                </div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($user['firstname'] . ' ' . $user['lastname']); ?></td>
+                                        <td><?php echo htmlspecialchars($user['username']); ?></td>
+                                        <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                        <td>
+                                            <span class="badge badge-info">
+                                                <?php echo htmlspecialchars($user['role_name']); ?>
+                                            </span>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($user['gander'] ?? 'N/A'); ?></td>
+                                        <td>
+                                            <?php
+                                            $status = $user['statuss'] ?? 'Active';
+                                            $badgeClass = ($status == 'Active') ? 'badge-success' : 'badge-danger';
+                                            ?>
+                                            <span class="badge <?php echo $badgeClass; ?>">
+                                                <?php echo htmlspecialchars($status); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn-icon edit-btn"
+                                                onclick='openEditModal(<?php echo json_encode($user); ?>)' title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <?php if ($user['user_id'] != $_SESSION['user_id']): ?>
+                                                <a href="users.php?delete_user=<?php echo $user['user_id']; ?>"
+                                                    class="btn-icon delete-btn"
+                                                    onclick="return confirm('Are you sure you want to delete this user?');"
+                                                    title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     <?php else: ?>
-                    <div class="empty-state">
-                        <i class="fas fa-users-slash"></i>
-                        <h3>No Users Found</h3>
-                        <p>No users available in the system.</p>
-                    </div>
+                        <div class="empty-state">
+                            <i class="fas fa-users-slash"></i>
+                            <h3>No Users Found</h3>
+                            <p>No users available in the system.</p>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
-            
+
             <!-- Print Footer / Signatures -->
             <div class="print-footer">
                 <div class="signature-box">
@@ -395,15 +431,25 @@ $roles_list = getAllRoles($conn);
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="firstname">First Name</label>
-                            <input type="text" id="firstname" name="firstname" required>
+                            <input type="text" id="firstname" name="firstname" pattern="[A-Za-z\s]+"
+                                title="First Name can only contain letters and spaces" required>
+                            <small id="firstnameError" style="color: #ef4444; display: none; margin-top: 4px;">Only
+                                letters are allowed</small>
                         </div>
                         <div class="form-group">
                             <label for="lastname">Last Name</label>
-                            <input type="text" id="lastname" name="lastname" required>
+                            <input type="text" id="lastname" name="lastname" pattern="[A-Za-z\s]+"
+                                title="Last Name can only contain letters and spaces" required>
+                            <small id="lastnameError" style="color: #ef4444; display: none; margin-top: 4px;">Only
+                                letters are allowed</small>
                         </div>
                         <div class="form-group">
                             <label for="username">Username</label>
-                            <input type="text" id="username" name="username" required>
+                            <input type="text" id="username" name="username" pattern="[A-Za-z].*"
+                                title="Username must start with a letter. Numbers can appear in the middle or at the end."
+                                required>
+                            <small id="usernameError" style="color: #ef4444; display: none; margin-top: 4px;">Username
+                                must start with a letter</small>
                         </div>
                         <div class="form-group">
                             <label for="email">Email</label>
@@ -461,15 +507,26 @@ $roles_list = getAllRoles($conn);
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="edit_firstname">First Name</label>
-                            <input type="text" id="edit_firstname" name="firstname" required>
+                            <input type="text" id="edit_firstname" name="firstname" pattern="[A-Za-z\s]+"
+                                title="First Name can only contain letters and spaces" required>
+                            <small id="editFirstnameError" style="color: #ef4444; display: none; margin-top: 4px;">Only
+                                letters are allowed</small>
                         </div>
                         <div class="form-group">
                             <label for="edit_lastname">Last Name</label>
-                            <input type="text" id="edit_lastname" name="lastname" required>
+                            <input type="text" id="edit_lastname" name="lastname" pattern="[A-Za-z\s]+"
+                                title="Last Name can only contain letters and spaces" required>
+                            <small id="editLastnameError" style="color: #ef4444; display: none; margin-top: 4px;">Only
+                                letters are allowed</small>
                         </div>
                         <div class="form-group">
                             <label for="edit_username">Username</label>
-                            <input type="text" id="edit_username" name="username" required>
+                            <input type="text" id="edit_username" name="username" pattern="[A-Za-z].*"
+                                title="Username must start with a letter. Numbers can appear in the middle or at the end."
+                                required>
+                            <small id="editUsernameError"
+                                style="color: #ef4444; display: none; margin-top: 4px;">Username must start with a
+                                letter</small>
                         </div>
                         <div class="form-group">
                             <label for="edit_email">Email</label>
@@ -523,10 +580,143 @@ $roles_list = getAllRoles($conn);
 
     <script src="./assets/js/script.js"></script>
     <script>
-        // Loading State for Add User Form
+        // Get form elements for Add User Modal
         const addUserForm = document.getElementById('addUserForm');
+        const firstnameInput = document.getElementById('firstname');
+        const lastnameInput = document.getElementById('lastname');
+        const usernameInput = document.getElementById('username');
+        const firstnameError = document.getElementById('firstnameError');
+        const lastnameError = document.getElementById('lastnameError');
+        const usernameError = document.getElementById('usernameError');
+
+        // First Name Validation - Only letters and spaces
+        firstnameInput.addEventListener('input', function () {
+            const originalValue = this.value;
+            const filteredValue = originalValue.replace(/[0-9]/g, '');
+
+            if (originalValue !== filteredValue) {
+                this.value = filteredValue;
+                firstnameError.style.display = 'block';
+                setTimeout(() => {
+                    firstnameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting numbers in First Name
+        firstnameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                firstnameError.style.display = 'block';
+                setTimeout(() => {
+                    firstnameError.style.display = 'none';
+                }, 3000);
+                alert('First Name can only contain letters and spaces');
+            }
+        });
+
+        // Last Name Validation - Only letters and spaces
+        lastnameInput.addEventListener('input', function () {
+            const originalValue = this.value;
+            const filteredValue = originalValue.replace(/[0-9]/g, '');
+
+            if (originalValue !== filteredValue) {
+                this.value = filteredValue;
+                lastnameError.style.display = 'block';
+                setTimeout(() => {
+                    lastnameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting numbers in Last Name
+        lastnameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                lastnameError.style.display = 'block';
+                setTimeout(() => {
+                    lastnameError.style.display = 'none';
+                }, 3000);
+                alert('Last Name can only contain letters and spaces');
+            }
+        });
+
+        // Username Validation - Must start with letter, numbers allowed in middle/end
+        usernameInput.addEventListener('input', function () {
+            const value = this.value;
+
+            // Check if starts with number
+            if (value.length > 0 && /^[0-9]/.test(value)) {
+                // Remove leading numbers
+                this.value = value.replace(/^[0-9]+/, '');
+                usernameError.style.display = 'block';
+                setTimeout(() => {
+                    usernameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting that starts with numbers in Username
+        usernameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/^[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                usernameError.style.display = 'block';
+                setTimeout(() => {
+                    usernameError.style.display = 'none';
+                }, 3000);
+                alert('Username must start with a letter');
+            }
+        });
+
+        // Add User Form submission validation
         if (addUserForm) {
-            addUserForm.addEventListener('submit', function(e) {
+            addUserForm.addEventListener('submit', function (e) {
+                const firstname = document.getElementById('firstname').value.trim();
+                const lastname = document.getElementById('lastname').value.trim();
+                const username = document.getElementById('username').value.trim();
+
+                // Validate First Name
+                if (!firstname) {
+                    e.preventDefault();
+                    alert('First Name is required');
+                    return;
+                }
+                if (/[0-9]/.test(firstname)) {
+                    e.preventDefault();
+                    alert('First Name can only contain letters and spaces');
+                    firstnameError.style.display = 'block';
+                    return;
+                }
+
+                // Validate Last Name
+                if (!lastname) {
+                    e.preventDefault();
+                    alert('Last Name is required');
+                    return;
+                }
+                if (/[0-9]/.test(lastname)) {
+                    e.preventDefault();
+                    alert('Last Name can only contain letters and spaces');
+                    lastnameError.style.display = 'block';
+                    return;
+                }
+
+                // Validate Username
+                if (!username) {
+                    e.preventDefault();
+                    alert('Username is required');
+                    return;
+                }
+                if (/^[0-9]/.test(username)) {
+                    e.preventDefault();
+                    alert('Username must start with a letter');
+                    usernameError.style.display = 'block';
+                    return;
+                }
+
                 const submitBtn = this.querySelector('button[type="submit"]');
                 if (submitBtn.disabled) {
                     e.preventDefault();
@@ -542,10 +732,143 @@ $roles_list = getAllRoles($conn);
             });
         }
 
-        // Loading State for Edit User Form
+        // Get form elements for Edit User Modal
         const editUserForm = document.getElementById('editUserForm');
+        const editFirstnameInput = document.getElementById('edit_firstname');
+        const editLastnameInput = document.getElementById('edit_lastname');
+        const editUsernameInput = document.getElementById('edit_username');
+        const editFirstnameError = document.getElementById('editFirstnameError');
+        const editLastnameError = document.getElementById('editLastnameError');
+        const editUsernameError = document.getElementById('editUsernameError');
+
+        // Edit First Name Validation - Only letters and spaces
+        editFirstnameInput.addEventListener('input', function () {
+            const originalValue = this.value;
+            const filteredValue = originalValue.replace(/[0-9]/g, '');
+
+            if (originalValue !== filteredValue) {
+                this.value = filteredValue;
+                editFirstnameError.style.display = 'block';
+                setTimeout(() => {
+                    editFirstnameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting numbers in Edit First Name
+        editFirstnameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                editFirstnameError.style.display = 'block';
+                setTimeout(() => {
+                    editFirstnameError.style.display = 'none';
+                }, 3000);
+                alert('First Name can only contain letters and spaces');
+            }
+        });
+
+        // Edit Last Name Validation - Only letters and spaces
+        editLastnameInput.addEventListener('input', function () {
+            const originalValue = this.value;
+            const filteredValue = originalValue.replace(/[0-9]/g, '');
+
+            if (originalValue !== filteredValue) {
+                this.value = filteredValue;
+                editLastnameError.style.display = 'block';
+                setTimeout(() => {
+                    editLastnameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting numbers in Edit Last Name
+        editLastnameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                editLastnameError.style.display = 'block';
+                setTimeout(() => {
+                    editLastnameError.style.display = 'none';
+                }, 3000);
+                alert('Last Name can only contain letters and spaces');
+            }
+        });
+
+        // Edit Username Validation - Must start with letter, numbers allowed in middle/end
+        editUsernameInput.addEventListener('input', function () {
+            const value = this.value;
+
+            // Check if starts with number
+            if (value.length > 0 && /^[0-9]/.test(value)) {
+                // Remove leading numbers
+                this.value = value.replace(/^[0-9]+/, '');
+                editUsernameError.style.display = 'block';
+                setTimeout(() => {
+                    editUsernameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting that starts with numbers in Edit Username
+        editUsernameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/^[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                editUsernameError.style.display = 'block';
+                setTimeout(() => {
+                    editUsernameError.style.display = 'none';
+                }, 3000);
+                alert('Username must start with a letter');
+            }
+        });
+
+        // Edit User Form submission validation
         if (editUserForm) {
-            editUserForm.addEventListener('submit', function(e) {
+            editUserForm.addEventListener('submit', function (e) {
+                const firstname = document.getElementById('edit_firstname').value.trim();
+                const lastname = document.getElementById('edit_lastname').value.trim();
+                const username = document.getElementById('edit_username').value.trim();
+
+                // Validate First Name
+                if (!firstname) {
+                    e.preventDefault();
+                    alert('First Name is required');
+                    return;
+                }
+                if (/[0-9]/.test(firstname)) {
+                    e.preventDefault();
+                    alert('First Name can only contain letters and spaces');
+                    editFirstnameError.style.display = 'block';
+                    return;
+                }
+
+                // Validate Last Name
+                if (!lastname) {
+                    e.preventDefault();
+                    alert('Last Name is required');
+                    return;
+                }
+                if (/[0-9]/.test(lastname)) {
+                    e.preventDefault();
+                    alert('Last Name can only contain letters and spaces');
+                    editLastnameError.style.display = 'block';
+                    return;
+                }
+
+                // Validate Username
+                if (!username) {
+                    e.preventDefault();
+                    alert('Username is required');
+                    return;
+                }
+                if (/^[0-9]/.test(username)) {
+                    e.preventDefault();
+                    alert('Username must start with a letter');
+                    editUsernameError.style.display = 'block';
+                    return;
+                }
+
                 const submitBtn = this.querySelector('button[type="submit"]');
                 if (submitBtn.disabled) {
                     e.preventDefault();
@@ -584,7 +907,7 @@ $roles_list = getAllRoles($conn);
             document.getElementById('edit_role_id').value = user.role_id;
             document.getElementById('edit_gander').value = user.gander;
             document.getElementById('edit_statuss').value = user.statuss || '1';
-            
+
             editModal.style.display = 'block';
             document.body.style.overflow = 'hidden';
         }
@@ -595,7 +918,7 @@ $roles_list = getAllRoles($conn);
         }
 
         // Close modal when clicking outside
-        window.onclick = function(event) {
+        window.onclick = function (event) {
             if (event.target == modal) {
                 closeModal();
             }
@@ -605,4 +928,5 @@ $roles_list = getAllRoles($conn);
         }
     </script>
 </body>
+
 </html>

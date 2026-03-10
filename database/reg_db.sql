@@ -4,9 +4,9 @@ CREATE TABLE `breakdown` (
   `reported_by_user_id` int(11) DEFAULT NULL,
   `breakdown_date` datetime DEFAULT NULL,
   `issue_description` text DEFAULT NULL,
-  `priority` enum('Low','Medium','High') DEFAULT NULL,
+  `priority` varchar(20) DEFAULT NULL,
   `statuss` varchar(50) DEFAULT NULL,
-  `create_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 CREATE TABLE `category` (

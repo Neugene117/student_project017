@@ -47,23 +47,28 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
     } else {
         $location_name = trim($_POST['location_name']);
         $description = trim($_POST['description']);
-        
+
         if (!empty($location_name)) {
-            $sql = "INSERT INTO equipment_location (location_name, description) VALUES (?, ?)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $location_name, $description);
-            
-            if ($stmt->execute()) {
-                $stmt->close();
-                // Regenerate token after successful submission
-                $_SESSION['location_token'] = bin2hex(random_bytes(32));
-                // Redirect to prevent duplicate submission on refresh
-                header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
-                exit();
+            // Validate location name - must start with letter, not number
+            if (preg_match('/^[0-9]/', $location_name)) {
+                $error_message = "Location name must start with a letter. Numbers can appear in the middle or at the end.";
             } else {
-                $error_message = "Error adding location: " . $conn->error;
+                $sql = "INSERT INTO equipment_location (location_name, description) VALUES (?, ?)";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("ss", $location_name, $description);
+
+                if ($stmt->execute()) {
+                    $stmt->close();
+                    // Regenerate token after successful submission
+                    $_SESSION['location_token'] = bin2hex(random_bytes(32));
+                    // Redirect to prevent duplicate submission on refresh
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
+                    exit();
+                } else {
+                    $error_message = "Error adding location: " . $conn->error;
+                }
+                $stmt->close();
             }
-            $stmt->close();
         } else {
             $error_message = "Location name cannot be empty!";
         }
@@ -73,11 +78,11 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
 // Handle Delete Location
 if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
     $location_id = intval($_POST['location_id']);
-    
+
     $sql = "DELETE FROM equipment_location WHERE location_id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $location_id);
-    
+
     if ($stmt->execute()) {
         $success_message = "Location deleted successfully!";
     } else {
@@ -95,23 +100,28 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']
         $location_id = intval($_POST['location_id']);
         $location_name = trim($_POST['location_name']);
         $description = trim($_POST['description']);
-        
+
         if (!empty($location_name)) {
-            $sql = "UPDATE equipment_location SET location_name = ?, description = ? WHERE location_id = ?";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ssi", $location_name, $description, $location_id);
-            
-            if ($stmt->execute()) {
-                $stmt->close();
-                // Regenerate token after successful submission
-                $_SESSION['location_token'] = bin2hex(random_bytes(32));
-                // Redirect to prevent duplicate submission on refresh
-                header("Location: " . $_SERVER['PHP_SELF'] . "?success=2");
-                exit();
+            // Validate location name - must start with letter, not number
+            if (preg_match('/^[0-9]/', $location_name)) {
+                $error_message = "Location name must start with a letter. Numbers can appear in the middle or at the end.";
             } else {
-                $error_message = "Error updating location: " . $conn->error;
+                $sql = "UPDATE equipment_location SET location_name = ?, description = ? WHERE location_id = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("ssi", $location_name, $description, $location_id);
+
+                if ($stmt->execute()) {
+                    $stmt->close();
+                    // Regenerate token after successful submission
+                    $_SESSION['location_token'] = bin2hex(random_bytes(32));
+                    // Redirect to prevent duplicate submission on refresh
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?success=2");
+                    exit();
+                } else {
+                    $error_message = "Error updating location: " . $conn->error;
+                }
+                $stmt->close();
             }
-            $stmt->close();
         } else {
             $error_message = "Location name cannot be empty!";
         }
@@ -131,6 +141,7 @@ if ($result && $result->num_rows > 0) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -364,7 +375,8 @@ if ($result && $result->num_rows > 0) {
                 flex-direction: column;
             }
 
-            .btn-edit, .btn-danger {
+            .btn-edit,
+            .btn-danger {
                 width: 100%;
             }
         }
@@ -440,8 +452,13 @@ if ($result && $result->num_rows > 0) {
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         .modal.active {
@@ -465,6 +482,7 @@ if ($result && $result->num_rows > 0) {
                 transform: translateY(-50px);
                 opacity: 0;
             }
+
             to {
                 transform: translateY(0);
                 opacity: 1;
@@ -551,6 +569,7 @@ if ($result && $result->num_rows > 0) {
         }
     </style>
 </head>
+
 <body>
     <!-- Sidebar -->
     <?php include './include/sidebar.php'; ?>
@@ -592,108 +611,101 @@ if ($result && $result->num_rows > 0) {
 
             <!-- Add Location Button -->
             <?php if ($is_admin): ?>
-            <div style="margin-bottom: 30px;">
-                <button id="addLocationBtn" class="btn-submit" style="margin: 0;">
-                    <i class="fas fa-plus"></i> Add New Location
-                </button>
-            </div>
+                <div style="margin-bottom: 30px;">
+                    <button id="addLocationBtn" class="btn-submit" style="margin: 0;">
+                        <i class="fas fa-plus"></i> Add New Location
+                    </button>
+                </div>
             <?php endif; ?>
 
             <!-- Add Location Modal -->
             <?php if ($is_admin): ?>
-            <div id="addLocationModal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2>
-                            <i class="fas fa-plus-circle" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                            Add New Location
-                        </h2>
-                        <button class="modal-close" id="closeModalBtn">&times;</button>
+                <div id="addLocationModal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>
+                                <i class="fas fa-plus-circle" style="color: var(--primary-blue); margin-right: 8px;"></i>
+                                Add New Location
+                            </h2>
+                            <button class="modal-close" id="closeModalBtn">&times;</button>
+                        </div>
+
+                        <form method="POST" action="" class="modal-form">
+                            <div class="form-group">
+                                <label for="modal_location_name">Location Name</label>
+                                <input type="text" id="modal_location_name" name="location_name"
+                                    placeholder="Enter location name (e.g., Building A, Room 101, etc.)"
+                                    pattern="[A-Za-z].*"
+                                    title="Location name must start with a letter. Numbers can appear in the middle or at the end."
+                                    required>
+                                <small id="nameError" style="color: #ef4444; display: none; margin-top: 4px;">Location name
+                                    must start with a letter</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="modal_description">Description</label>
+                                <textarea id="modal_description" name="description"
+                                    placeholder="Enter location description (optional)" rows="4"></textarea>
+                            </div>
+
+                            <div class="modal-footer">
+                                <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
+                                <button type="submit" class="btn-submit">
+                                    <i class="fas fa-plus"></i> Add Location
+                                </button>
+                            </div>
+
+                            <input type="hidden" name="action" value="add">
+                            <input type="hidden" name="csrf_token"
+                                value="<?php echo htmlspecialchars($_SESSION['location_token']); ?>">
+                        </form>
                     </div>
-
-                    <form method="POST" action="" class="modal-form">
-                        <div class="form-group">
-                            <label for="modal_location_name">Location Name</label>
-                            <input 
-                                type="text" 
-                                id="modal_location_name" 
-                                name="location_name" 
-                                placeholder="Enter location name (e.g., Building A, Room 101, etc.)"
-                                required
-                            >
-                        </div>
-
-                        <div class="form-group">
-                            <label for="modal_description">Description</label>
-                            <textarea 
-                                id="modal_description" 
-                                name="description" 
-                                placeholder="Enter location description (optional)"
-                                rows="4"
-                            ></textarea>
-                        </div>
-
-                        <div class="modal-footer">
-                            <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
-                            <button type="submit" class="btn-submit">
-                                <i class="fas fa-plus"></i> Add Location
-                            </button>
-                        </div>
-
-                        <input type="hidden" name="action" value="add">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['location_token']); ?>">
-                    </form>
                 </div>
-            </div>
             <?php endif; ?>
 
             <!-- Edit Location Modal -->
             <?php if ($is_admin): ?>
-            <div id="editLocationModal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2>
-                            <i class="fas fa-edit" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                            Edit Location
-                        </h2>
-                        <button class="modal-close" id="closeEditModalBtn">&times;</button>
+                <div id="editLocationModal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>
+                                <i class="fas fa-edit" style="color: var(--primary-blue); margin-right: 8px;"></i>
+                                Edit Location
+                            </h2>
+                            <button class="modal-close" id="closeEditModalBtn">&times;</button>
+                        </div>
+
+                        <form method="POST" action="" class="modal-form">
+                            <div class="form-group">
+                                <label for="edit_location_name">Location Name</label>
+                                <input type="text" id="edit_location_name" name="location_name"
+                                    placeholder="Enter location name" pattern="[A-Za-z].*"
+                                    title="Location name must start with a letter. Numbers can appear in the middle or at the end."
+                                    required>
+                                <small id="editNameError" style="color: #ef4444; display: none; margin-top: 4px;">Location
+                                    name must start with a letter</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="edit_description">Description</label>
+                                <textarea id="edit_description" name="description"
+                                    placeholder="Enter location description (optional)" rows="4"></textarea>
+                            </div>
+
+                            <div class="modal-footer">
+                                <button type="button" class="btn-cancel" id="cancelEditBtn">Cancel</button>
+                                <button type="submit" class="btn-submit">
+                                    <i class="fas fa-save"></i> Update Location
+                                </button>
+                            </div>
+
+                            <input type="hidden" name="action" value="edit">
+                            <input type="hidden" name="location_id" id="edit_location_id" value="">
+                            <input type="hidden" name="csrf_token"
+                                value="<?php echo htmlspecialchars($_SESSION['location_token']); ?>">
+                        </form>
                     </div>
-
-                    <form method="POST" action="" class="modal-form">
-                        <div class="form-group">
-                            <label for="edit_location_name">Location Name</label>
-                            <input 
-                                type="text" 
-                                id="edit_location_name" 
-                                name="location_name" 
-                                placeholder="Enter location name"
-                                required
-                            >
-                        </div>
-
-                        <div class="form-group">
-                            <label for="edit_description">Description</label>
-                            <textarea 
-                                id="edit_description" 
-                                name="description" 
-                                placeholder="Enter location description (optional)"
-                                rows="4"
-                            ></textarea>
-                        </div>
-
-                        <div class="modal-footer">
-                            <button type="button" class="btn-cancel" id="cancelEditBtn">Cancel</button>
-                            <button type="submit" class="btn-submit">
-                                <i class="fas fa-save"></i> Update Location
-                            </button>
-                        </div>
-
-                        <input type="hidden" name="action" value="edit">
-                        <input type="hidden" name="location_id" id="edit_location_id" value="">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['location_token']); ?>">
-                    </form>
                 </div>
-            </div>
             <?php endif; ?>
 
             <!-- Locations Table -->
@@ -710,16 +722,16 @@ if ($result && $result->num_rows > 0) {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php 
+                            <?php
                             $counter = 1;
-                            foreach ($locations as $location): 
-                            ?>
+                            foreach ($locations as $location):
+                                ?>
                                 <tr>
                                     <td class="location-id">#<?php echo $counter; ?></td>
                                     <td><?php echo htmlspecialchars($location['location_name']); ?></td>
                                     <td>
                                         <span class="created-date">
-                                            <?php 
+                                            <?php
                                             $description = htmlspecialchars($location['description']);
                                             echo strlen($description) > 50 ? substr($description, 0, 50) . '...' : $description;
                                             ?>
@@ -732,24 +744,28 @@ if ($result && $result->num_rows > 0) {
                                     </td>
                                     <td>
                                         <?php if ($is_admin): ?>
-                                        <button type="button" class="btn-icon btn-edit" onclick="openEditModal(<?php echo $location['location_id']; ?>, '<?php echo htmlspecialchars($location['location_name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($location['description'], ENT_QUOTES); ?>');" title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this location?');">
-                                            <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="location_id" value="<?php echo $location['location_id']; ?>">
-                                            <button type="submit" class="btn-icon btn-delete" title="Delete">
-                                                <i class="fas fa-trash"></i>
+                                            <button type="button" class="btn-icon btn-edit"
+                                                onclick="openEditModal(<?php echo $location['location_id']; ?>, '<?php echo htmlspecialchars($location['location_name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($location['description'], ENT_QUOTES); ?>');"
+                                                title="Edit">
+                                                <i class="fas fa-edit"></i>
                                             </button>
-                                        </form>
+                                            <form method="POST" style="display: inline;"
+                                                onsubmit="return confirm('Are you sure you want to delete this location?');">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="location_id"
+                                                    value="<?php echo $location['location_id']; ?>">
+                                                <button type="submit" class="btn-icon btn-delete" title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
                                         <?php else: ?>
-                                        <span style="color: var(--gray-500); font-size: 13px;">No permissions</span>
+                                            <span style="color: var(--gray-500); font-size: 13px;">No permissions</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
-                            <?php 
-                            $counter++;
-                            endforeach; 
+                                <?php
+                                $counter++;
+                            endforeach;
                             ?>
                         </tbody>
                     </table>
@@ -766,77 +782,176 @@ if ($result && $result->num_rows > 0) {
 
     <script src="./assets/js/script.js"></script>
     <?php if ($is_admin): ?>
-    <script>
-        // Get modal elements
-        const addLocationModal = document.getElementById('addLocationModal');
-        const addLocationBtn = document.getElementById('addLocationBtn');
-        const closeModalBtn = document.getElementById('closeModalBtn');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const modalForm = addLocationModal.querySelector('form');
+        <script>
+            // Get modal elements
+            const addLocationModal = document.getElementById('addLocationModal');
+            const addLocationBtn = document.getElementById('addLocationBtn');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const modalForm = addLocationModal.querySelector('form');
+            const locationNameInput = document.getElementById('modal_location_name');
+            const nameError = document.getElementById('nameError');
 
-        // Open modal
-        addLocationBtn.addEventListener('click', function() {
-            addLocationModal.classList.add('active');
-            document.getElementById('modal_location_name').focus();
-        });
+            // Location Name Validation - Must start with letter, numbers allowed in middle/end
+            locationNameInput.addEventListener('input', function () {
+                const value = this.value;
 
-        // Close modal
-        function closeModal() {
-            addLocationModal.classList.remove('active');
-            modalForm.reset();
-        }
+                // Check if starts with number
+                if (value.length > 0 && /^[0-9]/.test(value)) {
+                    // Remove leading numbers
+                    this.value = value.replace(/^[0-9]+/, '');
+                    nameError.style.display = 'block';
+                    setTimeout(() => {
+                        nameError.style.display = 'none';
+                    }, 3000);
+                }
+            });
 
-        closeModalBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
+            // Prevent pasting that starts with numbers
+            locationNameInput.addEventListener('paste', function (e) {
+                const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+                if (/^[0-9]/.test(pasteData)) {
+                    e.preventDefault();
+                    nameError.style.display = 'block';
+                    setTimeout(() => {
+                        nameError.style.display = 'none';
+                    }, 3000);
+                    alert('Location name must start with a letter');
+                }
+            });
 
-        // Close modal when clicking outside of it
-        addLocationModal.addEventListener('click', function(event) {
-            if (event.target === addLocationModal) {
-                closeModal();
+            // Open modal
+            addLocationBtn.addEventListener('click', function () {
+                addLocationModal.classList.add('active');
+                document.getElementById('modal_location_name').focus();
+            });
+
+            // Close modal
+            function closeModal() {
+                addLocationModal.classList.remove('active');
+                modalForm.reset();
             }
-        });
 
-        // Prevent modal close when clicking inside modal content
-        addLocationModal.querySelector('.modal-content').addEventListener('click', function(event) {
-            event.stopPropagation();
-        });
+            closeModalBtn.addEventListener('click', closeModal);
+            cancelBtn.addEventListener('click', closeModal);
 
-        // ========== Edit Location Modal ==========
-        const editLocationModal = document.getElementById('editLocationModal');
-        const closeEditModalBtn = document.getElementById('closeEditModalBtn');
-        const cancelEditBtn = document.getElementById('cancelEditBtn');
-        const editModalForm = editLocationModal.querySelector('form');
+            // Close modal when clicking outside of it
+            addLocationModal.addEventListener('click', function (event) {
+                if (event.target === addLocationModal) {
+                    closeModal();
+                }
+            });
 
-        // Open edit modal
-        function openEditModal(locationId, locationName, description) {
-            document.getElementById('edit_location_id').value = locationId;
-            document.getElementById('edit_location_name').value = locationName;
-            document.getElementById('edit_description').value = description;
-            editLocationModal.classList.add('active');
-            document.getElementById('edit_location_name').focus();
-        }
+            // Prevent modal close when clicking inside modal content
+            addLocationModal.querySelector('.modal-content').addEventListener('click', function (event) {
+                event.stopPropagation();
+            });
 
-        // Close edit modal
-        function closeEditModal() {
-            editLocationModal.classList.remove('active');
-            editModalForm.reset();
-        }
+            // Form submission validation
+            modalForm.addEventListener('submit', function (e) {
+                const locationName = document.getElementById('modal_location_name').value.trim();
 
-        closeEditModalBtn.addEventListener('click', closeEditModal);
-        cancelEditBtn.addEventListener('click', closeEditModal);
+                if (!locationName) {
+                    e.preventDefault();
+                    alert('Location name is required');
+                    return;
+                }
 
-        // Close modal when clicking outside of it
-        editLocationModal.addEventListener('click', function(event) {
-            if (event.target === editLocationModal) {
-                closeEditModal();
+                // Validate location name - must start with letter
+                if (/^[0-9]/.test(locationName)) {
+                    e.preventDefault();
+                    alert('Location name must start with a letter. Numbers can appear in the middle or at the end.');
+                    nameError.style.display = 'block';
+                    return;
+                }
+            });
+
+            // ========== Edit Location Modal ==========
+            const editLocationModal = document.getElementById('editLocationModal');
+            const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+            const cancelEditBtn = document.getElementById('cancelEditBtn');
+            const editModalForm = editLocationModal.querySelector('form');
+            const editLocationNameInput = document.getElementById('edit_location_name');
+            const editNameError = document.getElementById('editNameError');
+
+            // Edit Location Name Validation - Must start with letter, numbers allowed in middle/end
+            editLocationNameInput.addEventListener('input', function () {
+                const value = this.value;
+
+                // Check if starts with number
+                if (value.length > 0 && /^[0-9]/.test(value)) {
+                    // Remove leading numbers
+                    this.value = value.replace(/^[0-9]+/, '');
+                    editNameError.style.display = 'block';
+                    setTimeout(() => {
+                        editNameError.style.display = 'none';
+                    }, 3000);
+                }
+            });
+
+            // Prevent pasting that starts with numbers in edit modal
+            editLocationNameInput.addEventListener('paste', function (e) {
+                const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+                if (/^[0-9]/.test(pasteData)) {
+                    e.preventDefault();
+                    editNameError.style.display = 'block';
+                    setTimeout(() => {
+                        editNameError.style.display = 'none';
+                    }, 3000);
+                    alert('Location name must start with a letter');
+                }
+            });
+
+            // Open edit modal
+            function openEditModal(locationId, locationName, description) {
+                document.getElementById('edit_location_id').value = locationId;
+                document.getElementById('edit_location_name').value = locationName;
+                document.getElementById('edit_description').value = description;
+                editLocationModal.classList.add('active');
+                document.getElementById('edit_location_name').focus();
             }
-        });
 
-        // Prevent modal close when clicking inside modal content
-        editLocationModal.querySelector('.modal-content').addEventListener('click', function(event) {
-            event.stopPropagation();
-        });
-    </script>
+            // Close edit modal
+            function closeEditModal() {
+                editLocationModal.classList.remove('active');
+                editModalForm.reset();
+            }
+
+            closeEditModalBtn.addEventListener('click', closeEditModal);
+            cancelEditBtn.addEventListener('click', closeEditModal);
+
+            // Close modal when clicking outside of it
+            editLocationModal.addEventListener('click', function (event) {
+                if (event.target === editLocationModal) {
+                    closeEditModal();
+                }
+            });
+
+            // Prevent modal close when clicking inside modal content
+            editLocationModal.querySelector('.modal-content').addEventListener('click', function (event) {
+                event.stopPropagation();
+            });
+
+            // Edit form submission validation
+            editModalForm.addEventListener('submit', function (e) {
+                const locationName = document.getElementById('edit_location_name').value.trim();
+
+                if (!locationName) {
+                    e.preventDefault();
+                    alert('Location name is required');
+                    return;
+                }
+
+                // Validate location name - must start with letter
+                if (/^[0-9]/.test(locationName)) {
+                    e.preventDefault();
+                    alert('Location name must start with a letter. Numbers can appear in the middle or at the end.');
+                    editNameError.style.display = 'block';
+                    return;
+                }
+            });
+        </script>
     <?php endif; ?>
 </body>
+
 </html>

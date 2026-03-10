@@ -65,24 +65,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $error_message = "Security token validation failed. Please try again.";
     } else {
         $category_name = trim($_POST['category_name']);
-        
+
         if (!empty($category_name)) {
-            $user_id = $_SESSION['user_id'] ?? 1; // Default to 1 if not set
-            $sql = "INSERT INTO category (category_name, user_id) VALUES (?, ?)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("si", $category_name, $user_id);
-            
-            if ($stmt->execute()) {
-                $stmt->close();
-                // Regenerate token after successful submission
-                $_SESSION['category_token'] = bin2hex(random_bytes(32));
-                // Redirect to prevent duplicate submission on refresh
-                header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
-                exit();
+            // Validate category name - no numbers allowed
+            if (preg_match('/[0-9]/', $category_name)) {
+                $error_message = "Category name cannot contain numbers. Please use only letters and spaces.";
             } else {
-                $error_message = "Error adding category: " . $conn->error;
+                $user_id = $_SESSION['user_id'] ?? 1; // Default to 1 if not set
+                $sql = "INSERT INTO category (category_name, user_id) VALUES (?, ?)";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("si", $category_name, $user_id);
+
+                if ($stmt->execute()) {
+                    $stmt->close();
+                    // Regenerate token after successful submission
+                    $_SESSION['category_token'] = bin2hex(random_bytes(32));
+                    // Redirect to prevent duplicate submission on refresh
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
+                    exit();
+                } else {
+                    $error_message = "Error adding category: " . $conn->error;
+                }
+                $stmt->close();
             }
-            $stmt->close();
         } else {
             $error_message = "Category name cannot be empty!";
         }
@@ -92,11 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // Handle Delete Category
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
     $category_id = intval($_POST['category_id']);
-    
+
     $sql = "DELETE FROM category WHERE category_id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $category_id);
-    
+
     if ($stmt->execute()) {
         $success_message = "Category deleted successfully!";
     } else {
@@ -113,23 +118,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } else {
         $category_id = intval($_POST['category_id']);
         $category_name = trim($_POST['category_name']);
-        
+
         if (!empty($category_name)) {
-            $sql = "UPDATE category SET category_name = ? WHERE category_id = ?";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("si", $category_name, $category_id);
-            
-            if ($stmt->execute()) {
-                $stmt->close();
-                // Regenerate token after successful submission
-                $_SESSION['category_token'] = bin2hex(random_bytes(32));
-                // Redirect to prevent duplicate submission on refresh
-                header("Location: " . $_SERVER['PHP_SELF'] . "?success=2");
-                exit();
+            // Validate category name - no numbers allowed
+            if (preg_match('/[0-9]/', $category_name)) {
+                $error_message = "Category name cannot contain numbers. Please use only letters and spaces.";
             } else {
-                $error_message = "Error updating category: " . $conn->error;
+                $sql = "UPDATE category SET category_name = ? WHERE category_id = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("si", $category_name, $category_id);
+
+                if ($stmt->execute()) {
+                    $stmt->close();
+                    // Regenerate token after successful submission
+                    $_SESSION['category_token'] = bin2hex(random_bytes(32));
+                    // Redirect to prevent duplicate submission on refresh
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?success=2");
+                    exit();
+                } else {
+                    $error_message = "Error updating category: " . $conn->error;
+                }
+                $stmt->close();
             }
-            $stmt->close();
         } else {
             $error_message = "Category name cannot be empty!";
         }
@@ -149,6 +159,7 @@ if ($result && $result->num_rows > 0) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -381,7 +392,8 @@ if ($result && $result->num_rows > 0) {
                 flex-direction: column;
             }
 
-            .btn-edit, .btn-danger {
+            .btn-edit,
+            .btn-danger {
                 width: 100%;
             }
         }
@@ -457,8 +469,13 @@ if ($result && $result->num_rows > 0) {
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         .modal.active {
@@ -482,6 +499,7 @@ if ($result && $result->num_rows > 0) {
                 transform: translateY(-50px);
                 opacity: 0;
             }
+
             to {
                 transform: translateY(0);
                 opacity: 1;
@@ -565,6 +583,7 @@ if ($result && $result->num_rows > 0) {
         }
     </style>
 </head>
+
 <body>
     <!-- Sidebar -->
     <?php include './include/sidebar.php'; ?>
@@ -625,13 +644,12 @@ if ($result && $result->num_rows > 0) {
                     <form method="POST" action="" class="modal-form">
                         <div class="form-group">
                             <label for="modal_category_name">Category Name</label>
-                            <input 
-                                type="text" 
-                                id="modal_category_name" 
-                                name="category_name" 
+                            <input type="text" id="modal_category_name" name="category_name"
                                 placeholder="Enter category name (e.g., Medical Equipment, Tools, etc.)"
-                                required
-                            >
+                                pattern="[A-Za-z\s]+" title="Category name can only contain letters and spaces"
+                                required>
+                            <small id="nameError" style="color: #ef4444; display: none; margin-top: 4px;">Numbers are
+                                not allowed in category name</small>
                         </div>
 
                         <div class="modal-footer">
@@ -642,7 +660,8 @@ if ($result && $result->num_rows > 0) {
                         </div>
 
                         <input type="hidden" name="action" value="add">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
+                        <input type="hidden" name="csrf_token"
+                            value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
                     </form>
                 </div>
             </div>
@@ -661,13 +680,11 @@ if ($result && $result->num_rows > 0) {
                     <form method="POST" action="" class="modal-form">
                         <div class="form-group">
                             <label for="edit_category_name">Category Name</label>
-                            <input 
-                                type="text" 
-                                id="edit_category_name" 
-                                name="category_name" 
-                                placeholder="Enter category name"
-                                required
-                            >
+                            <input type="text" id="edit_category_name" name="category_name"
+                                placeholder="Enter category name" pattern="[A-Za-z\s]+"
+                                title="Category name can only contain letters and spaces" required>
+                            <small id="editNameError" style="color: #ef4444; display: none; margin-top: 4px;">Numbers
+                                are not allowed in category name</small>
                         </div>
 
                         <div class="modal-footer">
@@ -679,7 +696,8 @@ if ($result && $result->num_rows > 0) {
 
                         <input type="hidden" name="action" value="edit">
                         <input type="hidden" name="category_id" id="edit_category_id" value="">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
+                        <input type="hidden" name="csrf_token"
+                            value="<?php echo htmlspecialchars($_SESSION['category_token']); ?>">
                     </form>
                 </div>
             </div>
@@ -695,10 +713,10 @@ if ($result && $result->num_rows > 0) {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php 
+                            <?php
                             $counter = 1;
-                            foreach ($categories as $category): 
-                            ?>
+                            foreach ($categories as $category):
+                                ?>
                                 <tr>
                                     <td class="category-id">#<?php echo $counter; ?></td>
                                     <td><?php echo htmlspecialchars($category['category_name']); ?></td>
@@ -708,21 +726,25 @@ if ($result && $result->num_rows > 0) {
                                         </span>
                                     </td>
                                     <td>
-                                        <button type="button" class="btn-icon btn-edit" onclick="openEditModal(<?php echo $category['category_id']; ?>, '<?php echo htmlspecialchars($category['category_name'], ENT_QUOTES); ?>');" title="Edit">
+                                        <button type="button" class="btn-icon btn-edit"
+                                            onclick="openEditModal(<?php echo $category['category_id']; ?>, '<?php echo htmlspecialchars($category['category_name'], ENT_QUOTES); ?>');"
+                                            title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this category?');">
+                                        <form method="POST" style="display: inline;"
+                                            onsubmit="return confirm('Are you sure you want to delete this category?');">
                                             <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="category_id" value="<?php echo $category['category_id']; ?>">
+                                            <input type="hidden" name="category_id"
+                                                value="<?php echo $category['category_id']; ?>">
                                             <button type="submit" class="btn-icon btn-delete" title="Delete">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </form>
                                     </td>
                                 </tr>
-                            <?php 
-                            $counter++;
-                            endforeach; 
+                                <?php
+                                $counter++;
+                            endforeach;
                             ?>
                         </tbody>
                     </table>
@@ -745,9 +767,39 @@ if ($result && $result->num_rows > 0) {
         const closeModalBtn = document.getElementById('closeModalBtn');
         const cancelBtn = document.getElementById('cancelBtn');
         const modalForm = addCategoryModal.querySelector('form');
+        const categoryNameInput = document.getElementById('modal_category_name');
+        const nameError = document.getElementById('nameError');
+
+        // Category Name Validation - Only allow letters and spaces, no numbers
+        categoryNameInput.addEventListener('input', function () {
+            // Remove any numbers from the input
+            const originalValue = this.value;
+            const filteredValue = originalValue.replace(/[0-9]/g, '');
+
+            if (originalValue !== filteredValue) {
+                this.value = filteredValue;
+                nameError.style.display = 'block';
+                setTimeout(() => {
+                    nameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting numbers
+        categoryNameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                nameError.style.display = 'block';
+                setTimeout(() => {
+                    nameError.style.display = 'none';
+                }, 3000);
+                alert('Numbers are not allowed in category name');
+            }
+        });
 
         // Open modal
-        addCategoryBtn.addEventListener('click', function() {
+        addCategoryBtn.addEventListener('click', function () {
             addCategoryModal.classList.add('active');
             document.getElementById('modal_category_name').focus();
         });
@@ -762,15 +814,34 @@ if ($result && $result->num_rows > 0) {
         cancelBtn.addEventListener('click', closeModal);
 
         // Close modal when clicking outside of it
-        addCategoryModal.addEventListener('click', function(event) {
+        addCategoryModal.addEventListener('click', function (event) {
             if (event.target === addCategoryModal) {
                 closeModal();
             }
         });
 
         // Prevent modal close when clicking inside modal content
-        addCategoryModal.querySelector('.modal-content').addEventListener('click', function(event) {
+        addCategoryModal.querySelector('.modal-content').addEventListener('click', function (event) {
             event.stopPropagation();
+        });
+
+        // Form submission validation
+        modalForm.addEventListener('submit', function (e) {
+            const categoryName = document.getElementById('modal_category_name').value.trim();
+
+            if (!categoryName) {
+                e.preventDefault();
+                alert('Category name is required');
+                return;
+            }
+
+            // Validate category name - no numbers allowed
+            if (/[0-9]/.test(categoryName)) {
+                e.preventDefault();
+                alert('Category name cannot contain numbers. Please use only letters and spaces.');
+                nameError.style.display = 'block';
+                return;
+            }
         });
 
         // ========== Edit Category Modal ==========
@@ -778,6 +849,36 @@ if ($result && $result->num_rows > 0) {
         const closeEditModalBtn = document.getElementById('closeEditModalBtn');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         const editModalForm = editCategoryModal.querySelector('form');
+        const editCategoryNameInput = document.getElementById('edit_category_name');
+        const editNameError = document.getElementById('editNameError');
+
+        // Edit Category Name Validation - Only allow letters and spaces, no numbers
+        editCategoryNameInput.addEventListener('input', function () {
+            // Remove any numbers from the input
+            const originalValue = this.value;
+            const filteredValue = originalValue.replace(/[0-9]/g, '');
+
+            if (originalValue !== filteredValue) {
+                this.value = filteredValue;
+                editNameError.style.display = 'block';
+                setTimeout(() => {
+                    editNameError.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        // Prevent pasting numbers in edit modal
+        editCategoryNameInput.addEventListener('paste', function (e) {
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (/[0-9]/.test(pasteData)) {
+                e.preventDefault();
+                editNameError.style.display = 'block';
+                setTimeout(() => {
+                    editNameError.style.display = 'none';
+                }, 3000);
+                alert('Numbers are not allowed in category name');
+            }
+        });
 
         // Open edit modal
         function openEditModal(categoryId, categoryName) {
@@ -797,16 +898,36 @@ if ($result && $result->num_rows > 0) {
         cancelEditBtn.addEventListener('click', closeEditModal);
 
         // Close modal when clicking outside of it
-        editCategoryModal.addEventListener('click', function(event) {
+        editCategoryModal.addEventListener('click', function (event) {
             if (event.target === editCategoryModal) {
                 closeEditModal();
             }
         });
 
+        // Edit form submission validation
+        editModalForm.addEventListener('submit', function (e) {
+            const categoryName = document.getElementById('edit_category_name').value.trim();
+
+            if (!categoryName) {
+                e.preventDefault();
+                alert('Category name is required');
+                return;
+            }
+
+            // Validate category name - no numbers allowed
+            if (/[0-9]/.test(categoryName)) {
+                e.preventDefault();
+                alert('Category name cannot contain numbers. Please use only letters and spaces.');
+                editNameError.style.display = 'block';
+                return;
+            }
+        });
+
         // Prevent modal close when clicking inside modal content
-        editCategoryModal.querySelector('.modal-content').addEventListener('click', function(event) {
+        editCategoryModal.querySelector('.modal-content').addEventListener('click', function (event) {
             event.stopPropagation();
         });
     </script>
 </body>
+
 </html>

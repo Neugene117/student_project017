@@ -12,6 +12,17 @@ include('../config/db.php');
 $user_id = $_SESSION['user_id'];
 $role_id = $_SESSION['role_id'];
 
+// Get admin role_id
+$admin_role_id = null;
+$role_sql = "SELECT role_id FROM role WHERE role_name = 'Admin' LIMIT 1";
+$role_result = $conn->query($role_sql);
+if ($role_result && $role_result->num_rows > 0) {
+    $role_row = $role_result->fetch_assoc();
+    $admin_role_id = $role_row['role_id'];
+}
+
+$is_admin = ($role_id == $admin_role_id);
+
 // Fetch breakdowns
 // Admin sees all, Technicians see breakdowns they reported OR breakdowns for equipment they are assigned to?
 // The user said "show all items that have been damaged", I'll default to showing all for now, or maybe restrict based on role if needed.
@@ -42,6 +53,7 @@ if ($result) {
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -86,9 +98,20 @@ if ($result) {
             text-transform: uppercase;
         }
 
-        .priority-high { background: #fee2e2; color: #991b1b; }
-        .priority-medium { background: #ffedd5; color: #9a3412; }
-        .priority-low { background: #d1fae5; color: #065f46; }
+        .priority-high {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .priority-medium {
+            background: #ffedd5;
+            color: #9a3412;
+        }
+
+        .priority-low {
+            background: #d1fae5;
+            color: #065f46;
+        }
 
         .status-badge {
             padding: 4px 12px;
@@ -97,9 +120,16 @@ if ($result) {
             font-weight: 600;
         }
 
-        .status-open { background: #e0f2fe; color: #075985; }
-        .status-fixed { background: #dcfce7; color: #166534; }
-        
+        .status-open {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
+        .status-fixed {
+            background: #dcfce7;
+            color: #166534;
+        }
+
         .equipment-cell {
             display: flex;
             align-items: center;
@@ -119,8 +149,42 @@ if ($result) {
             padding: 48px;
             color: #6b7280;
         }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            padding: 0;
+            transition: transform 0.2s ease;
+            color: #6b7280;
+        }
+
+        .toggle-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .toggle-btn.active {
+            color: #10b981;
+        }
+
+        .toggle-btn.inactive {
+            color: #ef4444;
+        }
+
+        .toggle-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
     </style>
 </head>
+
 <body>
     <?php include './include/sidebar.php'; ?>
 
@@ -151,6 +215,9 @@ if ($result) {
                                 <th>Priority</th>
                                 <th>Status</th>
                                 <th>Issue</th>
+                                <?php if ($is_admin): ?>
+                                    <th>Change Status</th>
+                                <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -160,38 +227,68 @@ if ($result) {
                                     <td>
                                         <div class="equipment-cell">
                                             <?php if ($item['equipment_image']): ?>
-                                                <img src="../uploads/equipment/<?php echo htmlspecialchars($item['equipment_image']); ?>" class="equipment-img" alt="Eq">
+                                                <img src="../uploads/equipment/<?php echo htmlspecialchars($item['equipment_image']); ?>"
+                                                    class="equipment-img" alt="Eq">
                                             <?php else: ?>
-                                                <div class="equipment-img" style="display:flex;align-items:center;justify-content:center;"><i class="fas fa-image"></i></div>
+                                                <div class="equipment-img"
+                                                    style="display:flex;align-items:center;justify-content:center;"><i
+                                                        class="fas fa-image"></i></div>
                                             <?php endif; ?>
                                             <div>
-                                                <div style="font-weight:500;"><?php echo htmlspecialchars($item['equipment_name']); ?></div>
-                                                <div style="font-size:12px;color:#6b7280;"><?php echo htmlspecialchars($item['serial_number']); ?></div>
+                                                <div style="font-weight:500;">
+                                                    <?php echo htmlspecialchars($item['equipment_name']); ?></div>
+                                                <div style="font-size:12px;color:#6b7280;">
+                                                    <?php echo htmlspecialchars($item['serial_number']); ?></div>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
                                         <?php echo htmlspecialchars($item['firstname'] . ' ' . $item['lastname']); ?>
-                                        <div style="font-size:11px;color:#9ca3af;"><?php echo htmlspecialchars($item['reported_by_username']); ?></div>
+                                        <div style="font-size:11px;color:#9ca3af;">
+                                            <?php echo htmlspecialchars($item['reported_by_username']); ?></div>
                                     </td>
                                     <td><?php echo date('M d, Y', strtotime($item['breakdown_date'])); ?></td>
                                     <td>
-                                        <?php 
-                                            $p = strtolower($item['priority']);
-                                            $pClass = 'priority-low';
-                                            if ($p == 'high') $pClass = 'priority-high';
-                                            if ($p == 'medium') $pClass = 'priority-medium';
+                                        <?php
+                                        $p = strtolower($item['priority']);
+                                        $pClass = 'priority-low';
+                                        if ($p == 'high')
+                                            $pClass = 'priority-high';
+                                        if ($p == 'medium')
+                                            $pClass = 'priority-medium';
                                         ?>
-                                        <span class="priority-badge <?php echo $pClass; ?>"><?php echo htmlspecialchars($item['priority']); ?></span>
+                                        <span
+                                            class="priority-badge <?php echo $pClass; ?>"><?php echo htmlspecialchars($item['priority']); ?></span>
                                     </td>
                                     <td>
-                                        <span class="status-badge <?php echo ($item['statuss'] == 'Fixed' || $item['statuss'] == 'Resolved') ? 'status-fixed' : 'status-open'; ?>">
+                                        <span
+                                            class="status-badge <?php echo ($item['statuss'] == 'Fixed' || $item['statuss'] == 'Resolved') ? 'status-fixed' : 'status-open'; ?>">
                                             <?php echo htmlspecialchars($item['statuss']); ?>
                                         </span>
                                     </td>
                                     <td style="max-width: 300px;">
                                         <?php echo htmlspecialchars(substr($item['issue_description'], 0, 100)) . (strlen($item['issue_description']) > 100 ? '...' : ''); ?>
                                     </td>
+                                    <?php if ($is_admin): ?>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <?php
+                                                $current_status = strtolower($item['statuss']);
+                                                $is_active = ($current_status == 'active');
+                                                ?>
+                                                <button class="toggle-btn <?php echo $is_active ? 'active' : 'inactive'; ?>"
+                                                    data-breakdown-id="<?php echo $item['breakdown_id']; ?>"
+                                                    data-current-status="<?php echo htmlspecialchars($item['statuss']); ?>"
+                                                    onclick="toggleStatus(this)" title="Toggle Status">
+                                                    <?php if ($is_active): ?>
+                                                        <i class="fas fa-toggle-on"></i>
+                                                    <?php else: ?>
+                                                        <i class="fas fa-toggle-off"></i>
+                                                    <?php endif; ?>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    <?php endif; ?>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -202,5 +299,63 @@ if ($result) {
     </main>
 
     <script src="./assets/js/script.js"></script>
+    <script>
+        function toggleStatus(button) {
+            const breakdownId = button.getAttribute('data-breakdown-id');
+            const currentStatus = button.getAttribute('data-current-status');
+
+            // Determine new status
+            let newStatus = (currentStatus.toLowerCase() === 'active') ? 'Open' : 'active';
+
+            // Disable button during request
+            button.disabled = true;
+
+            // Make AJAX request
+            fetch('./update_breakdown_status.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    breakdown_id: breakdownId,
+                    new_status: newStatus
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the button appearance
+                        button.setAttribute('data-current-status', newStatus);
+
+                        if (newStatus.toLowerCase() === 'active') {
+                            button.classList.remove('inactive');
+                            button.classList.add('active');
+                            button.innerHTML = '<i class="fas fa-toggle-on"></i>';
+                        } else {
+                            button.classList.remove('active');
+                            button.classList.add('inactive');
+                            button.innerHTML = '<i class="fas fa-toggle-off"></i>';
+                        }
+
+                        // Show success message
+                        alert('Status updated to: ' + newStatus);
+
+                        // Reload the page to reflect changes in the status badge
+                        setTimeout(() => {
+                            location.reload();
+                        }, 500);
+                    } else {
+                        alert('Error: ' + (data.message || 'Failed to update status'));
+                        button.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while updating status');
+                    button.disabled = false;
+                });
+        }
+    </script>
 </body>
+
 </html>

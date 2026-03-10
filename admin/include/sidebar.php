@@ -53,7 +53,7 @@ if (isset($conn)) {
                 <li class="nav-item <?php echo $current_page == 'equipment.php' ? 'active' : ''; ?>">
                     <a href="equipment.php" class="nav-link">
                         <i class="fas fa-laptop-medical"></i>
-                        <span class="nav-text">Equipment</span>
+                        <span class="nav-text">Manage Equipment</span>
                         <span class="badge"><?php echo $sidebar_equipment_count; ?></span>
                     </a>
                 </li>
@@ -70,13 +70,13 @@ if (isset($conn)) {
                 <li class="nav-item <?php echo ($current_page == 'schedules.php' || $current_page == 'schedules_technician.php') ? 'active' : ''; ?>">
                     <a href="<?php echo ($role_id == 2) ? 'schedules_technician.php' : 'schedules.php'; ?>" class="nav-link">
                         <i class="fas fa-calendar-alt"></i>
-                        <span class="nav-text">Schedules</span>
+                        <span class="nav-text">Manage Schedules</span>
                     </a>
                 </li>
                 <li class="nav-item <?php echo $current_page == 'breakdowns.php' ? 'active' : ''; ?>">
                     <a href="breakdowns.php" class="nav-link">
                         <i class="fas fa-exclamation-triangle"></i>
-                        <span class="nav-text">Breakdowns</span>
+                        <span class="nav-text">Manage Breakdowns</span>
                         <span class="badge danger"><?php echo $sidebar_breakdown_count; ?></span>
                     </a>
                 </li>
@@ -86,7 +86,7 @@ if (isset($conn)) {
                 <li class="nav-item <?php echo $current_page == 'categories.php' ? 'active' : ''; ?>">
                     <a href="categories.php" class="nav-link">
                         <i class="fas fa-layer-group"></i>
-                        <span class="nav-text">Categories</span>
+                        <span class="nav-text">Manage Categories</span>
                     </a>
                 </li>
 
@@ -96,7 +96,7 @@ if (isset($conn)) {
                 <li class="nav-item <?php echo $current_page == 'equipment_location.php' ? 'active' : ''; ?>">
                     <a href="equipment_location.php" class="nav-link">
                         <i class="fas fa-map-marker-alt"></i>
-                        <span class="nav-text">Locations</span>
+                        <span class="nav-text">Manage Locations</span>
                     </a>
                 </li>
             <?php endif; ?>
@@ -105,13 +105,13 @@ if (isset($conn)) {
                 <li class="nav-item <?php echo $current_page == 'users.php' ? 'active' : ''; ?>">
                     <a href="./users.php" class="nav-link">
                         <i class="fas fa-users"></i>
-                        <span class="nav-text">Users</span>
+                        <span class="nav-text">Manage Users</span>
                     </a>
                 </li>
                 <li class="nav-item <?php echo $current_page == 'role.php' ? 'active' : ''; ?>">
                     <a href="./role.php" class="nav-link">
                         <i class="fas fa-user-shield"></i>
-                        <span class="nav-text">Roles</span>
+                        <span class="nav-text">Manage Roles</span>
                     </a>
                 </li>
             <?php endif; ?>
