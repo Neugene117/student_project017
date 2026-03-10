@@ -693,6 +693,7 @@ if ($result && $result->num_rows > 0) {
                     </form>
                 </div>
             </div>
+            <?php endif; ?>
             <div class="categories-table">
                 <?php if (count($categories) > 0): ?>
                     <table>
@@ -718,20 +719,24 @@ if ($result && $result->num_rows > 0) {
                                         </span>
                                     </td>
                                     <td>
-                                        <button type="button" class="btn-icon btn-edit"
-                                            onclick="openEditModal(<?php echo $category['category_id']; ?>, '<?php echo htmlspecialchars($category['category_name'], ENT_QUOTES); ?>');"
-                                            title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                        <form method="POST" style="display: inline;"
-                                            onsubmit="return confirm('Are you sure you want to delete this category?');">
-                                            <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="category_id"
-                                                value="<?php echo $category['category_id']; ?>">
-                                            <button type="submit" class="btn-icon btn-delete" title="Delete">
-                                                <i class="fas fa-trash"></i>
+                                        <?php if ($is_admin): ?>
+                                            <button type="button" class="btn-icon btn-edit"
+                                                onclick="openEditModal(<?php echo $category['category_id']; ?>, '<?php echo htmlspecialchars($category['category_name'], ENT_QUOTES); ?>');"
+                                                title="Edit">
+                                                <i class="fas fa-edit"></i>
                                             </button>
-                                        </form>
+                                            <form method="POST" style="display: inline;"
+                                                onsubmit="return confirm('Are you sure you want to delete this category?');">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="category_id"
+                                                    value="<?php echo $category['category_id']; ?>">
+                                                <button type="submit" class="btn-icon btn-delete" title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span style="color: var(--gray-500); font-size: 13px;">View only</span>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php
@@ -752,6 +757,7 @@ if ($result && $result->num_rows > 0) {
     </main>
 
     <script src="./assets/js/script.js"></script>
+    <?php if ($is_admin): ?>
     <script>
         // Get modal elements
         const addCategoryModal = document.getElementById('addCategoryModal');
@@ -922,6 +928,7 @@ if ($result && $result->num_rows > 0) {
             event.stopPropagation();
         });
     </script>
+    <?php endif; ?>
 </body>
 
 </html>
