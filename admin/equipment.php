@@ -10,14 +10,21 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
 // Include database connection
 require_once '../config/db.php';
+require_once __DIR__ . '/include/permissions.php';
 
-// Get user role from session
-$user_role = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : '';
+// Role permissions
+$role_id = current_role_id();
+$can_view = is_view_all_role($role_id); // role 1 and role 3 can view equipment
+$is_admin = can_manage_admin_data($role_id); // only role 1 can manage equipment
 $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 
-// Check if user is admin
-if ($user_role !== 'admin') {
-    header("Location: dashboard.php?error=" . urlencode("You do not have permission to access this page"));
+if (!$can_view) {
+    redirect_with_error("dashboard.php", "You do not have permission to access this page");
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_admin) {
+    $_SESSION['error_message'] = "You do not have permission to perform this action.";
+    header("Location: equipment.php");
     exit();
 }
 
@@ -1033,9 +1040,11 @@ if (empty($_SESSION['csrf_token'])) {
                 <!-- Header with Add Button -->
                 <div class="equipment-header">
                     <h2><i class="fas fa-laptop-medical"></i> Equipment Management</h2>
-                    <button class="btn-add" id="addEquipmentBtn">
-                        <i class="fas fa-plus"></i> Add Equipment
-                    </button>
+                    <?php if ($is_admin): ?>
+                        <button class="btn-add" id="addEquipmentBtn">
+                            <i class="fas fa-plus"></i> Add Equipment
+                        </button>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Success Message -->
@@ -1142,6 +1151,7 @@ if (empty($_SESSION['csrf_token'])) {
         </div>
     </main>
 
+    <?php if ($is_admin): ?>
     <!-- Add/Edit Equipment Modal -->
     <div id="addEquipmentModal" class="modal">
         <div class="modal-content">
@@ -1266,6 +1276,7 @@ if (empty($_SESSION['csrf_token'])) {
             </form>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- View Equipment Modal -->
     <div id="viewEquipmentModal" class="modal">
@@ -1306,6 +1317,7 @@ if (empty($_SESSION['csrf_token'])) {
         const warrantyFields = document.getElementById('warranty_fields');
         const startingDateInput = document.getElementById('starting_date');
         const expiredDateInput = document.getElementById('expired_date');
+        const canManage = <?php echo $is_admin ? 'true' : 'false'; ?>;
 
         // Handle warranty selection
         warrantyYes.addEventListener('change', function () {
@@ -1385,6 +1397,7 @@ if (empty($_SESSION['csrf_token'])) {
 
         // Function to remove image preview
         function removeImagePreview() {
+            if (!canManage || !fileInput || !fileName || !imagePreviewContainer) return;
             fileInput.value = '';
             fileName.textContent = '';
             imagePreviewContainer.classList.remove('show');
@@ -1392,12 +1405,12 @@ if (empty($_SESSION['csrf_token'])) {
 
         // Close Add Equipment Modal
         function closeModal() {
-            addEquipmentModal.classList.remove('show');
+            if (addEquipmentModal) addEquipmentModal.classList.remove('show');
         }
 
         // Close View Equipment Modal
         function closeViewModal() {
-            viewEquipmentModal.classList.remove('show');
+            if (viewEquipmentModal) viewEquipmentModal.classList.remove('show');
         }
 
         // Close modal when clicking outside
@@ -1412,22 +1425,28 @@ if (empty($_SESSION['csrf_token'])) {
 
         // Handle drag and drop
         const fileInputLabel = document.querySelector('.file-input-label');
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            fileInputLabel.addEventListener(eventName, preventDefaults, false);
-        });
+        if (canManage && fileInputLabel) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                fileInputLabel.addEventListener(eventName, preventDefaults, false);
+            });
+        }
 
         function preventDefaults(e) {
             e.preventDefault();
             e.stopPropagation();
         }
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            fileInputLabel.addEventListener(eventName, highlight, false);
-        });
+        if (canManage && fileInputLabel) {
+            ['dragenter', 'dragover'].forEach(eventName => {
+                fileInputLabel.addEventListener(eventName, highlight, false);
+            });
+        }
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            fileInputLabel.addEventListener(eventName, unhighlight, false);
-        });
+        if (canManage && fileInputLabel) {
+            ['dragleave', 'drop'].forEach(eventName => {
+                fileInputLabel.addEventListener(eventName, unhighlight, false);
+            });
+        }
 
         function highlight(e) {
             fileInputLabel.style.borderColor = '#2563eb';
@@ -1439,7 +1458,9 @@ if (empty($_SESSION['csrf_token'])) {
             fileInputLabel.style.background = '#f3f4f6';
         }
 
-        fileInputLabel.addEventListener('drop', handleDrop, false);
+        if (canManage && fileInputLabel) {
+            fileInputLabel.addEventListener('drop', handleDrop, false);
+        }
 
         function handleDrop(e) {
             const dt = e.dataTransfer;
@@ -1504,6 +1525,7 @@ if (empty($_SESSION['csrf_token'])) {
 
         // Edit Equipment
         function editEquipment(id) {
+            if (!canManage) return;
             // Show loading state or similar if desired
 
             // Fetch equipment details

@@ -10,10 +10,11 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
 // Database connection
 require_once '../config/db.php';
+require_once __DIR__ . '/include/permissions.php';
 
 $user_id = (int)($_SESSION['user_id'] ?? 0);
 $role_id = (int)($_SESSION['role_id'] ?? 0);
-$is_admin = ($role_id === 1);
+$is_admin = is_view_all_role($role_id); // role 1 and role 3 see all data
 
 // --- Fetch Stats Cards ---
 

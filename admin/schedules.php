@@ -8,14 +8,13 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-// Check if user has admin role
-$user_role = isset($_SESSION['user_role']) ? trim($_SESSION['user_role']) : null;
-$is_admin = ($user_role === 'admin');
+require_once __DIR__ . '/include/permissions.php';
+$role_id = current_role_id();
+$can_view = is_view_all_role($role_id); // role 1 and role 3 can view all schedules
+$is_admin = can_manage_admin_data($role_id); // only role 1 can manage schedules
 
-// If user is not admin, redirect them
-if (!$is_admin) {
-    header("Location: ./dashboard.php?error=" . urlencode("You do not have permission to access this page"));
-    exit();
+if (!$can_view) {
+    redirect_with_error("./dashboard.php", "You do not have permission to access this page");
 }
 
 // Include database connection

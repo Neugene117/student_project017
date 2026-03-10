@@ -10,6 +10,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
 // Include database connection
 include('../config/db.php');
+require_once __DIR__ . '/include/permissions.php';
 
 // Check if user has admin role
 $user_id = $_SESSION['user_id'] ?? null;
@@ -18,29 +19,19 @@ if (!$user_id) {
     exit();
 }
 
-// Fetch user's role
-$sql_role = "SELECT r.role_name FROM users u 
-             JOIN role r ON u.role_id = r.role_id 
-             WHERE u.user_id = ?";
-$stmt_role = $conn->prepare($sql_role);
-$stmt_role->bind_param("i", $user_id);
-$stmt_role->execute();
-$result_role = $stmt_role->get_result();
+$role_id = current_role_id();
+$can_view = is_view_all_role($role_id); // role 1 and role 3 can view categories
+$is_admin = can_manage_admin_data($role_id); // only role 1 can manage categories
 
-if ($result_role->num_rows === 0) {
-    header("Location: ../../index.html?error=" . urlencode("User role not found"));
-    exit();
+if (!$can_view) {
+    redirect_with_error("dashboard.php", "You do not have permission to access categories");
 }
 
-$user_data = $result_role->fetch_assoc();
-$user_role = $user_data['role_name'];
-$stmt_role->close();
+$success_message = $success_message ?? '';
+$error_message = $error_message ?? '';
 
-// Check if user is admin
-$is_admin = ($user_role === 'admin');
-if (!$is_admin) {
-    header("Location: dashboard.php?error=" . urlencode("You do not have permission to manage categories"));
-    exit();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_admin) {
+    $error_message = "You do not have permission to perform this action.";
 }
 
 // Generate CSRF token if not exists
@@ -59,7 +50,7 @@ if (isset($_GET['success']) && $_GET['success'] == '2') {
 }
 
 // Handle Add Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
+if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
     // Verify CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['category_token']) {
         $error_message = "Security token validation failed. Please try again.";
@@ -95,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Handle Delete Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
     $category_id = intval($_POST['category_id']);
 
     $sql = "DELETE FROM category WHERE category_id = ?";
@@ -111,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Handle Edit Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
+if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
     // Verify CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['category_token']) {
         $error_message = "Security token validation failed. Please try again.";
@@ -623,23 +614,24 @@ if ($result && $result->num_rows > 0) {
                 </div>
             </div>
 
-            <!-- Add Category Button -->
-            <div style="margin-bottom: 30px;">
-                <button id="addCategoryBtn" class="btn-submit" style="margin: 0;">
-                    <i class="fas fa-plus"></i> Add New Category
-                </button>
-            </div>
+            <?php if ($is_admin): ?>
+                <!-- Add Category Button -->
+                <div style="margin-bottom: 30px;">
+                    <button id="addCategoryBtn" class="btn-submit" style="margin: 0;">
+                        <i class="fas fa-plus"></i> Add New Category
+                    </button>
+                </div>
 
-            <!-- Add Category Modal -->
-            <div id="addCategoryModal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2>
-                            <i class="fas fa-plus-circle" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                            Add New Category
-                        </h2>
-                        <button class="modal-close" id="closeModalBtn">&times;</button>
-                    </div>
+                <!-- Add Category Modal -->
+                <div id="addCategoryModal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>
+                                <i class="fas fa-plus-circle" style="color: var(--primary-blue); margin-right: 8px;"></i>
+                                Add New Category
+                            </h2>
+                            <button class="modal-close" id="closeModalBtn">&times;</button>
+                        </div>
 
                     <form method="POST" action="" class="modal-form">
                         <div class="form-group">
@@ -652,12 +644,12 @@ if ($result && $result->num_rows > 0) {
                                 not allowed in category name</small>
                         </div>
 
-                        <div class="modal-footer">
-                            <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
-                            <button type="submit" class="btn-submit">
-                                <i class="fas fa-plus"></i> Add Category
-                            </button>
-                        </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
+                                <button type="submit" class="btn-submit">
+                                    <i class="fas fa-plus"></i> Add Category
+                                </button>
+                            </div>
 
                         <input type="hidden" name="action" value="add">
                         <input type="hidden" name="csrf_token"
@@ -666,16 +658,16 @@ if ($result && $result->num_rows > 0) {
                 </div>
             </div>
 
-            <!-- Edit Category Modal -->
-            <div id="editCategoryModal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2>
-                            <i class="fas fa-edit" style="color: var(--primary-blue); margin-right: 8px;"></i>
-                            Edit Category
-                        </h2>
-                        <button class="modal-close" id="closeEditModalBtn">&times;</button>
-                    </div>
+                <!-- Edit Category Modal -->
+                <div id="editCategoryModal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>
+                                <i class="fas fa-edit" style="color: var(--primary-blue); margin-right: 8px;"></i>
+                                Edit Category
+                            </h2>
+                            <button class="modal-close" id="closeEditModalBtn">&times;</button>
+                        </div>
 
                     <form method="POST" action="" class="modal-form">
                         <div class="form-group">
@@ -687,12 +679,12 @@ if ($result && $result->num_rows > 0) {
                                 are not allowed in category name</small>
                         </div>
 
-                        <div class="modal-footer">
-                            <button type="button" class="btn-cancel" id="cancelEditBtn">Cancel</button>
-                            <button type="submit" class="btn-submit">
-                                <i class="fas fa-save"></i> Update Category
-                            </button>
-                        </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn-cancel" id="cancelEditBtn">Cancel</button>
+                                <button type="submit" class="btn-submit">
+                                    <i class="fas fa-save"></i> Update Category
+                                </button>
+                            </div>
 
                         <input type="hidden" name="action" value="edit">
                         <input type="hidden" name="category_id" id="edit_category_id" value="">
@@ -804,14 +796,14 @@ if ($result && $result->num_rows > 0) {
             document.getElementById('modal_category_name').focus();
         });
 
-        // Close modal
-        function closeModal() {
-            addCategoryModal.classList.remove('active');
-            modalForm.reset();
-        }
+            // Close modal
+            function closeModal() {
+                addCategoryModal.classList.remove('active');
+                if (modalForm) modalForm.reset();
+            }
 
-        closeModalBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
+            closeModalBtn.addEventListener('click', closeModal);
+            cancelBtn.addEventListener('click', closeModal);
 
         // Close modal when clicking outside of it
         addCategoryModal.addEventListener('click', function (event) {
@@ -882,6 +874,7 @@ if ($result && $result->num_rows > 0) {
 
         // Open edit modal
         function openEditModal(categoryId, categoryName) {
+            if (!editCategoryModal) return;
             document.getElementById('edit_category_id').value = categoryId;
             document.getElementById('edit_category_name').value = categoryName;
             editCategoryModal.classList.add('active');
@@ -890,12 +883,13 @@ if ($result && $result->num_rows > 0) {
 
         // Close edit modal
         function closeEditModal() {
+            if (!editCategoryModal) return;
             editCategoryModal.classList.remove('active');
-            editModalForm.reset();
+            if (editModalForm) editModalForm.reset();
         }
 
-        closeEditModalBtn.addEventListener('click', closeEditModal);
-        cancelEditBtn.addEventListener('click', closeEditModal);
+        if (closeEditModalBtn) closeEditModalBtn.addEventListener('click', closeEditModal);
+        if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditModal);
 
         // Close modal when clicking outside of it
         editCategoryModal.addEventListener('click', function (event) {

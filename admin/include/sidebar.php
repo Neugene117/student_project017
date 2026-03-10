@@ -2,7 +2,7 @@
 // Get current page filename for active state
 $current_page = basename($_SERVER['PHP_SELF']);
 $role_id = isset($_SESSION['role_id']) ? intval($_SESSION['role_id']) : 0;
-// Roles: 1 = Admin, 2 = Technician, 3 = Owner
+// Roles: 1 = Admin, 2 = Technician, 3 = Super Admin (view-only)
 
 // Fetch Sidebar Counts
 $sidebar_equipment_count = 0;
@@ -101,7 +101,7 @@ if (isset($conn)) {
                 </li>
             <?php endif; ?>
 
-            <?php if ($role_id == 1): // Admin only ?>
+            <?php if ($role_id == 1 || $role_id == 3): // Admin & Super Admin (view-only for role 3) ?>
                 <li class="nav-item <?php echo $current_page == 'users.php' ? 'active' : ''; ?>">
                     <a href="./users.php" class="nav-link">
                         <i class="fas fa-users"></i>

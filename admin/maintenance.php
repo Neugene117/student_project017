@@ -8,6 +8,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 include('../config/db.php');
+require_once __DIR__ . '/include/permissions.php';
 
 $user_id = $_SESSION['user_id'];
 $role_id = $_SESSION['role_id'];
@@ -15,7 +16,7 @@ $role_id = $_SESSION['role_id'];
 // Fetch equipment based on role
 $equipment_list = [];
 
-if ($role_id == 1) {
+if (is_view_all_role((int)$role_id)) {
     // Admin: Fetch all equipment
     $sql = "SELECT e.*, c.category_name, l.location_name 
             FROM equipment e 
