@@ -5,9 +5,9 @@ return [
     'host' => 'smtp.gmail.com',
     'port' => 587,
     'encryption' => 'tls', // 'tls' or 'ssl'
-    'username' => 'fabrdaa@gmail.com', // your email address
-    'password' => 'khzgtfxpdqmdxwhy', // your app password
-    'from_email' => 'fabrdaa@gmail.com', // same as username or a verified sender
+    'username' => 'neeendayishimiye@gmail.com', // your email address
+    'password' => 'ypyc yuvf ozrz vhih', // your app password
+    'from_email' => 'neeendayishimiye@gmail.com', // same as username or a verified sender
     'from_name' => 'REG Management System',
     'reply_to' => '', // optional
     'debug' => false,
