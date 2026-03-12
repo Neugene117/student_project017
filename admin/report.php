@@ -37,7 +37,7 @@ $user_role = $user_data['role_name'];
 $user_fullname = $user_data['firstname'] . ' ' . $user_data['lastname'];
 $stmt_role->close();
 
-$role_id = $_SESSION['role_id'];
+	$role_id = (int)($_SESSION['role_id'] ?? 0);
 
 // Set default date range
 $start_date = $_GET['start_date'] ?? date('Y-m-01'); // First day of current month
@@ -90,16 +90,16 @@ function getMaintenanceStats($conn, $start_date, $end_date, $user_id, $role_id) 
             WHERE (DATE(m.completed_date) BETWEEN ? AND ?
             OR (m.statuss = 'Scheduled' AND DATE(m.created_at) BETWEEN ? AND ?))";
     
-    if ($role_id != 1) { // Not Admin
-        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
-    }
-    
-    $stmt = $conn->prepare($sql);
-    if ($role_id != 1) {
-        $stmt->bind_param("ssssii", $start_date, $end_date, $start_date, $end_date, $user_id, $user_id);
-    } else {
-        $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
-    }
+	    if ($role_id !== 1 && $role_id !== 3) { // Not Admin/Owner
+	        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+	    }
+	    
+	    $stmt = $conn->prepare($sql);
+	    if ($role_id !== 1 && $role_id !== 3) {
+	        $stmt->bind_param("ssssii", $start_date, $end_date, $start_date, $end_date, $user_id, $user_id);
+	    } else {
+	        $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+	    }
     
     $stmt->execute();
     $result = $stmt->get_result();
@@ -122,16 +122,16 @@ function getBreakdownStats($conn, $start_date, $end_date, $user_id, $role_id) {
             LEFT JOIN equipment e ON b.equipment_id = e.id
             WHERE DATE(b.breakdown_date) BETWEEN ? AND ?";
             
-    if ($role_id != 1) { // Not Admin
-        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
-    }
-    
-    $stmt = $conn->prepare($sql);
-    if ($role_id != 1) {
-        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
-    } else {
-        $stmt->bind_param("ss", $start_date, $end_date);
-    }
+	    if ($role_id !== 1 && $role_id !== 3) { // Not Admin/Owner
+	        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+	    }
+	    
+	    $stmt = $conn->prepare($sql);
+	    if ($role_id !== 1 && $role_id !== 3) {
+	        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+	    } else {
+	        $stmt->bind_param("ss", $start_date, $end_date);
+	    }
 
     $stmt->execute();
     $result = $stmt->get_result();
@@ -152,18 +152,18 @@ function getDailyMaintenanceReport($conn, $start_date, $end_date, $user_id, $rol
             LEFT JOIN maintenance_schedule ms ON m.maintenance_schedule_id = ms.schedule_id
             WHERE DATE(m.completed_date) BETWEEN ? AND ?";
             
-    if ($role_id != 1) { // Not Admin
-        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
-    }
-    
-    $sql .= " GROUP BY DATE(m.completed_date) ORDER BY report_date DESC";
-    
-    $stmt = $conn->prepare($sql);
-    if ($role_id != 1) {
-        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
-    } else {
-        $stmt->bind_param("ss", $start_date, $end_date);
-    }
+	    if ($role_id !== 1 && $role_id !== 3) { // Not Admin/Owner
+	        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+	    }
+	    
+	    $sql .= " GROUP BY DATE(m.completed_date) ORDER BY report_date DESC";
+	    
+	    $stmt = $conn->prepare($sql);
+	    if ($role_id !== 1 && $role_id !== 3) {
+	        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+	    } else {
+	        $stmt->bind_param("ss", $start_date, $end_date);
+	    }
 
     $stmt->execute();
     $result = $stmt->get_result();
@@ -188,18 +188,18 @@ function getMonthlyMaintenanceReport($conn, $year, $user_id, $role_id) {
             LEFT JOIN maintenance_schedule ms ON m.maintenance_schedule_id = ms.schedule_id
             WHERE YEAR(m.completed_date) = ?";
             
-    if ($role_id != 1) { // Not Admin
-        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
-    }
-    
-    $sql .= " GROUP BY MONTH(m.completed_date), MONTHNAME(m.completed_date) ORDER BY month_num DESC";
-    
-    $stmt = $conn->prepare($sql);
-    if ($role_id != 1) {
-        $stmt->bind_param("iii", $year, $user_id, $user_id);
-    } else {
-        $stmt->bind_param("i", $year);
-    }
+	    if ($role_id !== 1 && $role_id !== 3) { // Not Admin/Owner
+	        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+	    }
+	    
+	    $sql .= " GROUP BY MONTH(m.completed_date), MONTHNAME(m.completed_date) ORDER BY month_num DESC";
+	    
+	    $stmt = $conn->prepare($sql);
+	    if ($role_id !== 1 && $role_id !== 3) {
+	        $stmt->bind_param("iii", $year, $user_id, $user_id);
+	    } else {
+	        $stmt->bind_param("i", $year);
+	    }
 
     $stmt->execute();
     $result = $stmt->get_result();
@@ -222,18 +222,18 @@ function getDailyBreakdownReport($conn, $start_date, $end_date, $user_id, $role_
             LEFT JOIN equipment e ON b.equipment_id = e.id
             WHERE DATE(b.breakdown_date) BETWEEN ? AND ?";
             
-    if ($role_id != 1) { // Not Admin
-        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
-    }
-    
-    $sql .= " GROUP BY DATE(b.breakdown_date) ORDER BY report_date DESC";
-    
-    $stmt = $conn->prepare($sql);
-    if ($role_id != 1) {
-        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
-    } else {
-        $stmt->bind_param("ss", $start_date, $end_date);
-    }
+	    if ($role_id !== 1 && $role_id !== 3) { // Not Admin/Owner
+	        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+	    }
+	    
+	    $sql .= " GROUP BY DATE(b.breakdown_date) ORDER BY report_date DESC";
+	    
+	    $stmt = $conn->prepare($sql);
+	    if ($role_id !== 1 && $role_id !== 3) {
+	        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+	    } else {
+	        $stmt->bind_param("ss", $start_date, $end_date);
+	    }
 
     $stmt->execute();
     $result = $stmt->get_result();
@@ -264,18 +264,18 @@ function getMaintenanceRecords($conn, $start_date, $end_date, $user_id, $role_id
             WHERE (DATE(m.completed_date) BETWEEN ? AND ?
             OR (m.statuss = 'Scheduled' AND DATE(m.created_at) BETWEEN ? AND ?))";
             
-    if ($role_id != 1) { // Not Admin
-        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
-    }
-    
-    $sql .= " ORDER BY m.completed_date DESC LIMIT 100";
-    
-    $stmt = $conn->prepare($sql);
-    if ($role_id != 1) {
-        $stmt->bind_param("ssssii", $start_date, $end_date, $start_date, $end_date, $user_id, $user_id);
-    } else {
-        $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
-    }
+	    if ($role_id !== 1 && $role_id !== 3) { // Not Admin/Owner
+	        $sql .= " AND (m.user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = m.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+	    }
+	    
+	    $sql .= " ORDER BY m.completed_date DESC LIMIT 100";
+	    
+	    $stmt = $conn->prepare($sql);
+	    if ($role_id !== 1 && $role_id !== 3) {
+	        $stmt->bind_param("ssssii", $start_date, $end_date, $start_date, $end_date, $user_id, $user_id);
+	    } else {
+	        $stmt->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+	    }
 
     $stmt->execute();
     $result = $stmt->get_result();
@@ -303,18 +303,18 @@ function getBreakdownRecords($conn, $start_date, $end_date, $user_id, $role_id) 
             LEFT JOIN users u ON b.reported_by_user_id = u.user_id
             WHERE DATE(b.breakdown_date) BETWEEN ? AND ?";
             
-    if ($role_id != 1) { // Not Admin
-        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
-    }
-    
-    $sql .= " ORDER BY b.breakdown_date DESC LIMIT 100";
-    
-    $stmt = $conn->prepare($sql);
-    if ($role_id != 1) {
-        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
-    } else {
-        $stmt->bind_param("ss", $start_date, $end_date);
-    }
+	    if ($role_id !== 1 && $role_id !== 3) { // Not Admin/Owner
+	        $sql .= " AND (b.reported_by_user_id = ? OR EXISTS (SELECT 1 FROM maintenance_schedule sub_ms WHERE sub_ms.equipment_id = b.equipment_id AND sub_ms.assigned_to_user_id = ?))";
+	    }
+	    
+	    $sql .= " ORDER BY b.breakdown_date DESC LIMIT 100";
+	    
+	    $stmt = $conn->prepare($sql);
+	    if ($role_id !== 1 && $role_id !== 3) {
+	        $stmt->bind_param("ssii", $start_date, $end_date, $user_id, $user_id);
+	    } else {
+	        $stmt->bind_param("ss", $start_date, $end_date);
+	    }
 
     $stmt->execute();
     $result = $stmt->get_result();
